@@ -103,6 +103,7 @@ def main():
         dataset = [json.loads(line) for line in f.readlines()]
     with open(prompt_path, "r", encoding="utf-8") as f:
         prompt = json.loads(f.read())[test_args['prompt_name']]
+    del test_args['compute_attention'], test_args['attention_output_dir']
     prediction(dataset, training_args, args, prompt, **test_args)
 
 if __name__ == "__main__":
