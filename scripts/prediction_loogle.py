@@ -92,7 +92,7 @@ def prediction_long(training_args: TrainingArguments, args: dict, output_file: s
                     return_dict_in_generate=True,
                 )
                 output = outputs.sequences
-                attentions = outputs.attentions[-1]
+                attentions = None if outputs.attentions is None else outputs.attentions[-1]
                 if compute_attention:
                     get_average_attention(tokenizer, attentions, input_ids, qa_pair['S'], os.path.join(attention_output_dir, f"attn_{sample['title']}_{i}.png"))
                 output_model = output[0][input_ids.shape[-1]:]
