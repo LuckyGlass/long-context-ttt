@@ -107,16 +107,26 @@ def prediction_long(training_args: TrainingArguments, args: dict, output_file: s
             json.dump(results, f, indent=4)
 
 
-def prediction_short(training_args: TrainingArguments, args: dict, output_file: str, prepend_input: bool=True, recite_first: bool=False, compute_attention: bool=False, input_file: str=""):
+def prediction_short(training_args: TrainingArguments, args: dict, output_file: str, prepend_input: bool=True, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None, input_file: str=""):
     model_max_length = args['model_max_length']
     with open(input_file, "r") as f:
         samples = [json.loads(line) for line in f]
+    debug_size = args.pop('debug_size')
+    with open(input_file, "r") as f:
+        samples = [json.loads(line) for line in f]
+        if debug_size is not None:
+            samples = samples[:debug_size]
     
     results = []
     for sample in samples:
         sample["qa_pairs"] = eval(sample["qa_pairs"])
         model, tokenizer = LooGLEtrain(datapoint=sample, training_args=training_args, **args)
-        for qa_pair in tqdm.tqdm(sample["qa_pairs"]):
+        for param in model.parameters():
+            param.grad = None
+        from long_ttt.utils import printGPU
+        printGPU("Eval")
+        for i, qa_pair in enumerate(tqdm.tqdm(sample["qa_pairs"])):
+            torch.cuda.empty_cache()
             prompts = []
             prompts += [
                 f"Please answer the following question only based on \"{sample['title']}\"."
@@ -156,16 +166,21 @@ def prediction_short(training_args: TrainingArguments, args: dict, output_file: 
                     temperature=1.0,
                     num_beams=1,
                     repetition_penalty=1.1,
-                    output_hidden_states=compute_attention,
+                    output_attentions=compute_attention,
                     return_dict_in_generate=True,
                 )
                 output = outputs.sequences
+                attentions = None if outputs.attentions is None else outputs.attentions[-1]
                 if compute_attention:
-                    qa_pair['S_attn'] = get_average_attention(tokenizer, outputs.attentions[-1], input_ids, qa_pair['S'])
+                    get_average_attention(tokenizer, attentions, input_ids, qa_pair['S'], os.path.join(attention_output_dir, f"attn_{sample['title']}_{i}.png"))
                 output_model = output[0][input_ids.shape[-1]:]
                 pred = tokenizer.decode(output_model, skip_special_tokens=True)
                 qa_pair['pred'] = pred
+            del output, attentions, input_ids, output_model
         results.append(sample)
+        del model, tokenizer
+        torch.cuda.empty_cache()
+        printGPU("End of task")
         with open(output_file, "w") as f:
             json.dump(results, f, indent=4)
 
