@@ -4,4 +4,5 @@
 **/outputs/
 **/.DS_Store
 utils/
+datasets/
 site-packages
