@@ -1,0 +1,7 @@
+**/__pycache__/
+**/logs/
+**/wandb/
+**/outputs/
+**/.DS_Store
+utils/
+site-packages
