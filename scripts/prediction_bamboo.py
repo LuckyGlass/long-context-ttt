@@ -91,8 +91,11 @@ def main():
     )
     input_file = test_args.pop('input_file')
     prompt_path = test_args.pop('prompt_path')
+    debug_size = args.pop('debug_size')
     with open(input_file, "r", encoding="utf-8") as f:
         dataset = [json.loads(line) for line in f.readlines()]
+    if debug_size is not None:
+        dataset = dataset[:debug_size]
     with open(prompt_path, "r", encoding="utf-8") as f:
         prompt = json.loads(f.read())[test_args['prompt_name']]
     prediction(dataset, training_args, args, prompt, **test_args)
