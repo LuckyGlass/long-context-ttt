@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Optional
-from transformers import MODEL_FOR_CAUSAL_LM_MAPPING, TrainingArguments
+from typing import Optional, Any
+from transformers import MODEL_FOR_CAUSAL_LM_MAPPING, HfArgumentParser
 import logging
 
 
@@ -102,3 +102,29 @@ class GlobalTestArguments:
     input_file: Optional[str] = field(default=None)
     compute_attention: bool = field(default=False)
     attention_output_dir: Optional[str] = field(default=None)
+
+
+def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any]):
+    class_set = set()
+    for cluster in class_clusters:
+        if isinstance(cluster, tuple):
+            class_set.update(set(cluster))
+        else:
+            class_set.add(cluster)
+    class_tuple = tuple(class_set)
+    parser = HfArgumentParser(class_tuple)
+    arg_list = parser.parse_args_into_dataclasses()
+    arg_dict = {c: a for c, a in zip(class_tuple, arg_list)}
+    returns = ()
+    for cluster in class_clusters:
+        if isinstance(cluster, tuple):
+            temp = {}
+            for item in cluster:
+                temp.update(dict(vars(arg_dict[item])))
+            returns += (temp,)
+        else:
+            if cluster in no_dict:
+                returns += (arg_dict[cluster],)
+            else:
+                returns += (dict(vars(arg_dict[cluster])),)
+    return returns

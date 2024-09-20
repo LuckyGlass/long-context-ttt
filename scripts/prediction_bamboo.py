@@ -6,12 +6,10 @@ import torch
 import re
 from transformers import (
     TrainingArguments,
-    HfArgumentParser,
-    PreTrainedTokenizer,
     AutoTokenizer
 )
 from dataclasses import dataclass, field
-from long_ttt.ttt_args import ModelArguments, CustomTrainingArguments, DataTrainingArguments
+from long_ttt.ttt_args import ModelArguments, CustomTrainingArguments, DataTrainingArguments, parse_args
 from long_ttt.train import train
 from long_ttt.context_dataset import ContextDataset
 
@@ -34,15 +32,6 @@ def Bamboo_train(full_text: str, training_args, **kwargs):
     tokenizer = AutoTokenizer.from_pretrained(kwargs['model_name_or_path'], **tokenizer_kwargs)
     dataset = ContextDataset(full_text, tokenizer, **kwargs)
     return train(dataset, tokenizer, training_args, **kwargs)
-
-
-def parse_args():
-    parser = HfArgumentParser([TrainingArguments, TestArguments, ModelArguments, CustomTrainingArguments, DataTrainingArguments])
-    args = {}
-    training_args, test_args, *other_args = parser.parse_args_into_dataclasses()
-    for class_args in other_args:
-        args.update(vars(class_args))
-    return training_args, dict(vars(test_args)), args
 
 
 def generate(model, tokenizer, input_data, model_max_length):
@@ -96,7 +85,10 @@ def prediction(dataset: list[dict], training_args: TrainingArguments, args: dict
                 )
 
 def main():
-    training_args, test_args, args = parse_args()
+    training_args, test_args, args = parse_args(
+        (TrainingArguments, TestArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)),
+        no_dict=(TrainingArguments,)
+    )
     input_file = test_args.pop('input_file')
     prompt_path = test_args.pop('prompt_path')
     with open(input_file, "r", encoding="utf-8") as f:

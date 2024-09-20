@@ -188,19 +188,3 @@ class ContextDataset(Dataset):
     
     def __getitem__(self, index):
         return self.preprocessing(self.data[index])
-
-
-class LooGLEDataset(ContextDataset):
-    def __init__(self, datapoint: dict, tokenizer: transformers.PreTrainedTokenizer, **kwargs):
-        """
-        Args:
-            datapoint (dict): a LooGLE-style datapoint.
-            tokenizer (PreTrainedTokenizer): transformers' tokenizer; it should be equipped with a chat template.
-            model_max_length (int): OPTIONAL; the texts will be clipped or padded to model_max_length tokens.
-            block_size (int): OPTIONAL; the number of tokens in a block; a block is the unit of segments and offsets.
-            len_segment (int): OPTIONAL; the number of units in a segment; the article is divided into segments.
-            len_offset (int): OPTIONAL; the number of units per offset; it determines the offset from one segment to the next one.
-            prepend_title (bool): OPTIONAL; whether to prompt the model with the title.
-            sent_token (bool): OPTIONAL; whether to insert a `<|reserved_special_token_249|>` between each two sentences; if enabled, the model must be trained to recognize this token.
-        """
-        super().__init__(datapoint['input'], tokenizer, title=datapoint['title'], **kwargs)
