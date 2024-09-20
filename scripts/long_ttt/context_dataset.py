@@ -56,7 +56,7 @@ def apply_qa_template(tokenizer: transformers.PreTrainedTokenizer, question: str
 class ContextDataset(Dataset):
     shared_generator: Optional[PreTrainedModel] = None
     
-    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, **kwargs):
+    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, pad_to_max_length: bool=True, **kwargs):
         """
         Args:
             context (str): the context to train on.
@@ -72,6 +72,7 @@ class ContextDataset(Dataset):
         self.tokenizer = tokenizer
         self.model_max_length = model_max_length
         self.sent_token = '<|reserved_special_token_249|>' if sent_token else None
+        self.pad_to_max_length = pad_to_max_length
         texts = context.replace('\0', ' ')
         if sent_token:
             sentences = sent_tokenize(texts)
@@ -173,8 +174,9 @@ class ContextDataset(Dataset):
         # Clip and truncation
         input_ids = input_ids[:self.model_max_length]
         labels = labels[:self.model_max_length]
-        input_ids += [self.tokenizer.pad_token_id] * (self.model_max_length - len(input_ids))
-        labels += [self.ignore_index] * (self.model_max_length - len(labels))
+        if self.pad_to_max_length:
+            input_ids += [self.tokenizer.pad_token_id] * (self.model_max_length - len(input_ids))
+            labels += [self.ignore_index] * (self.model_max_length - len(labels))
         # Transfer to Tensor
         input_ids = torch.LongTensor(input_ids)
         labels = torch.LongTensor(labels)

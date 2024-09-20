@@ -72,6 +72,7 @@ class DataTrainingArguments:
     sent_token: bool = field(default=False)
     num_generate_qa: int = field(default=0)
     generator_name_or_path: Optional[str] = field(default=None)
+    pad_to_max_length: bool = field(default=True)
 
 
 @dataclass
