@@ -2,6 +2,7 @@
 **/logs/
 **/wandb/
 **/outputs/
+models/
 **/.DS_Store
 utils/
 datasets/
