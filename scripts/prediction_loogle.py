@@ -24,8 +24,6 @@ import os
 class TestArguments(GlobalTestArguments):
     output_file: Optional[str] = field(default=None)
     dataset_name: Optional[str] = field(default=None)
-    prepend_input: bool = field(default=True)
-    recite_first: bool = field(default=False)
 
 
 def LooGLEtrain(datapoint: dict, training_args: TrainingArguments, **kwargs):
@@ -59,6 +57,7 @@ def LooGLEtrain(datapoint: dict, training_args: TrainingArguments, **kwargs):
         "use_fast": True, 
     }
     tokenizer = AutoTokenizer.from_pretrained(kwargs['model_name_or_path'], **tokenizer_kwargs)
+    tokenizer.pad_token = tokenizer.eos_token
     dataset = ContextDataset(datapoint['input'], tokenizer, title=datapoint['title'], **kwargs)
     return train(dataset, tokenizer, training_args, **kwargs)
 
@@ -78,6 +77,7 @@ def prediction_long(training_args: TrainingArguments, args: dict, output_file: s
         model, tokenizer = LooGLEtrain(sample, training_args, **args)
         for param in model.parameters():
             param.grad = None
+        torch.cuda.empty_cache()
         from long_ttt.utils import printGPU
         printGPU("Eval")
         for i, qa_pair in enumerate(tqdm.tqdm(sample["qa_pairs"])):
@@ -224,6 +224,8 @@ def main():
         no_dict=(TrainingArguments,)
     )
     dataset_name = test_args.pop('dataset_name')
+    test_args['recite_first'] = args['recite_first']
+    test_args['prepend_input'] = args['prepend_input']
     if test_args['attention_output_dir'] is not None:
         os.makedirs(test_args['attention_output_dir'], exist_ok=True)
     if dataset_name == "long_qa":
