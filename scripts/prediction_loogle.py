@@ -4,10 +4,17 @@
 import json
 import tqdm
 import torch
-from transformers import TrainingArguments, HfArgumentParser
+from transformers import TrainingArguments, HfArgumentParser, AutoTokenizer
 from dataclasses import dataclass, field
-from long_ttt.train import LooGLEtrain
-from long_ttt.ttt_args import ModelArguments, CustomTrainingArguments, DataTrainingArguments, GlobalTestArguments
+from long_ttt.train import train
+from long_ttt.ttt_args import (
+    ModelArguments,
+    CustomTrainingArguments,
+    DataTrainingArguments,
+    GlobalTestArguments,
+    parse_args
+)
+from long_ttt.context_dataset import ContextDataset
 from long_ttt.utils import get_average_attention
 from typing import Optional
 import os
@@ -17,17 +24,42 @@ import os
 class TestArguments(GlobalTestArguments):
     output_file: Optional[str] = field(default=None)
     dataset_name: Optional[str] = field(default=None)
-    prepend_input: bool = field(default=True)
-    recite_first: bool = field(default=False)
 
 
-def parse_args():
-    parser = HfArgumentParser([TrainingArguments, TestArguments, ModelArguments, CustomTrainingArguments, DataTrainingArguments])
-    args = {}
-    training_args, test_args, *other_args = parser.parse_args_into_dataclasses()
-    for class_args in other_args:
-        args.update(vars(class_args))
-    return training_args, dict(vars(test_args)), args
+def LooGLEtrain(datapoint: dict, training_args: TrainingArguments, **kwargs):
+    """Fine-tune the model and the corresponding tokenizer on a LooGLE task.
+    Args:
+        datapoint (dict): a LooGLE-style datapoint, containing `input`, `title`, `qa_pairs`.
+        tokenizer (PreTrainedTokenizer): a Llama tokenizer (or other tokenizers with chat template).
+        training_args (TrainingArguments): transformers-style training arguments, used for the trainer.
+        gather_batches (bool): OPTIONAL, default to `False`; if `gather_batches=True`, it will force the trainer to update the model only once every epoch; it may lead to more stable gradients.
+        use_lora (bool): OPTIONAL, default to `False`; whether to use LoRA.
+        lora_rank (int): OPTIONAL, default to `None`; assign it when `use_lora=True`.
+        full_ft (bool): OPTIONAL, default to `False`; whether to full-fine-tune the model.
+        load_in_4bit (bool): OPTIONAL, default to `False`; it must be used with `use_lora=True`.
+        load_in_8bit (bool): OPTIONAL, default to `False`; it must be used with `use_lora=True`.
+        cache_dir (str): OPTIONAL, default to `None`.
+        model_revision (str): OPTIONAL, default to `"main"`.
+        use_auth_token (bool): OPTIONAL, default to `False`.
+        model_max_length (int): OPTIONAL; the texts will be clipped or padded to model_max_length tokens.
+        block_size (int): OPTIONAL; the number of tokens in a block; a block is the unit of segments and offsets.
+        len_segment (int): OPTIONAL; the number of units in a segment; the article is divided into segments.
+        len_offset (int): OPTIONAL; the number of units per offset; it determines the offset from one segment to the next one.
+        prepend_title (bool): OPTIONAL; whether to prompt the model with the title.
+        sent_token (bool): OPTIONAL; whether to insert a `<|reserved_special_token_249|>` between each two sentences; if enabled, the model must be trained to recognize this token.
+    Returns:
+        model_tokenizer_pair (tuple[PreTrainedModel, PreTrainedTokenizer]): the fine-tuned model and the corresponding tokenizer.
+    """
+    tokenizer_kwargs = {
+        "cache_dir": kwargs.get("cache_dir", None),
+        "use_auth_token": kwargs.get("use_auth_token", False),
+        "revision": kwargs.get("model_revision", "main"),
+        "use_fast": True, 
+    }
+    tokenizer = AutoTokenizer.from_pretrained(kwargs['model_name_or_path'], **tokenizer_kwargs)
+    tokenizer.pad_token = tokenizer.eos_token
+    dataset = ContextDataset(datapoint['input'], tokenizer, title=datapoint['title'], **kwargs)
+    return train(dataset, tokenizer, training_args, **kwargs)
 
 
 def prediction_long(training_args: TrainingArguments, args: dict, output_file: str, prepend_input: bool=True, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None, input_file: str=""):
@@ -45,6 +77,7 @@ def prediction_long(training_args: TrainingArguments, args: dict, output_file: s
         model, tokenizer = LooGLEtrain(sample, training_args, **args)
         for param in model.parameters():
             param.grad = None
+        torch.cuda.empty_cache()
         from long_ttt.utils import printGPU
         printGPU("Eval")
         for i, qa_pair in enumerate(tqdm.tqdm(sample["qa_pairs"])):
@@ -186,8 +219,13 @@ def prediction_short(training_args: TrainingArguments, args: dict, output_file: 
 
 
 def main():
-    training_args, test_args, args = parse_args()
+    training_args, test_args, args = parse_args(
+        (TrainingArguments, TestArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)),
+        no_dict=(TrainingArguments,)
+    )
     dataset_name = test_args.pop('dataset_name')
+    test_args['recite_first'] = args['recite_first']
+    test_args['prepend_input'] = args['prepend_input']
     if test_args['attention_output_dir'] is not None:
         os.makedirs(test_args['attention_output_dir'], exist_ok=True)
     if dataset_name == "long_qa":

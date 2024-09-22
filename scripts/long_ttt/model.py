@@ -16,7 +16,7 @@ import torch
 from torch.utils.data import Dataset
 
 
-def load_base_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, load_in_4bit: bool=False, load_in_8bit: bool=False, cache_dir: Optional[str]=None, model_revision: str='main', use_auth_token: bool=False, **kwargs):
+def load_base_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, load_in_4bit: bool=False, load_in_8bit: bool=False, **kwargs):
     """Load the base model.
     Args:
         model_name_or_path (str):
@@ -36,21 +36,15 @@ def load_base_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, loa
         )
         model_base = MyLlamaForCausalLM.from_pretrained(
             model_name_or_path,
-            cache_dir=cache_dir,
-            revision=model_revision,
             trust_remote_code=True,
             device_map="auto",
             quantization_config=quantization_config,
-            use_auth_token=True if use_auth_token else None,
         )
     else:
         model_base = MyLlamaForCausalLM.from_pretrained(
             model_name_or_path,
-            cache_dir=cache_dir,
-            revision=model_revision,
             trust_remote_code=True,
             device_map="auto",
-            use_auth_token=True if use_auth_token else None,
         )
 
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch

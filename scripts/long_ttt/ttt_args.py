@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Optional
-from transformers import MODEL_FOR_CAUSAL_LM_MAPPING, TrainingArguments
+from typing import Optional, Any
+from transformers import MODEL_FOR_CAUSAL_LM_MAPPING, HfArgumentParser
 import logging
 
 
@@ -10,23 +10,6 @@ MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 class ModelArguments:
     model_name_or_path: str
     model_max_length: Optional[int] = field(default=None)
-    cache_dir: Optional[str] = field(
-        default=None,
-        metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
-    )
-    model_revision: str = field(
-        default="main",
-        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
-    )
-    use_auth_token: bool = field(
-        default=False,
-        metadata={
-            "help": (
-                "Will use the token generated when running `huggingface-cli login` (necessary to use this script "
-                "with private models)."
-            )
-        },
-    )
 
 
 @dataclass
@@ -72,6 +55,9 @@ class DataTrainingArguments:
     sent_token: bool = field(default=False)
     num_generate_qa: int = field(default=0)
     generator_name_or_path: Optional[str] = field(default=None)
+    pad_to_max_length: bool = field(default=True)
+    recite_first: bool = field(default=False)
+    prepend_input: bool = field(default=True)
 
 
 @dataclass
@@ -102,3 +88,29 @@ class GlobalTestArguments:
     input_file: Optional[str] = field(default=None)
     compute_attention: bool = field(default=False)
     attention_output_dir: Optional[str] = field(default=None)
+
+
+def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any]):
+    class_set = set()
+    for cluster in class_clusters:
+        if isinstance(cluster, tuple):
+            class_set.update(set(cluster))
+        else:
+            class_set.add(cluster)
+    class_tuple = tuple(class_set)
+    parser = HfArgumentParser(class_tuple)
+    arg_list = parser.parse_args_into_dataclasses()
+    arg_dict = {c: a for c, a in zip(class_tuple, arg_list)}
+    returns = ()
+    for cluster in class_clusters:
+        if isinstance(cluster, tuple):
+            temp = {}
+            for item in cluster:
+                temp.update(dict(vars(arg_dict[item])))
+            returns += (temp,)
+        else:
+            if cluster in no_dict:
+                returns += (arg_dict[cluster],)
+            else:
+                returns += (dict(vars(arg_dict[cluster])),)
+    return returns

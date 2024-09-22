@@ -1,6 +1,5 @@
 from nltk.tokenize import sent_tokenize
 import torch
-from copy import deepcopy
 from torch.utils.data import Dataset
 import transformers
 from transformers import (
@@ -8,19 +7,11 @@ from transformers import (
     AutoModelForCausalLM
 )
 from typing import Optional
-
-import os
-import json
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from transformers import AutoModelForSequenceClassification
 import torch
-import tqdm
-import random
-import re
-import nltk
+
 from nltk.tokenize import sent_tokenize
 
-def apply_qa_template(tokenizer: transformers.PreTrainedTokenizer, question: str, answer: str, evidences: list[str], title: str, prepend_title: bool=False, sent_token: str|None=None) -> tuple[torch.Tensor, int]:
+def apply_qa_template(question: str, answer: Optional[str]=None, evidences: Optional[list[str]]=None, title: Optional[str]=None, context: Optional[str]=None, prepend_title: bool=False, sent_token: Optional[str]=None, recite_first: bool=False, prepend_input: bool=False, return_answer: bool=False):
     """Apply the QA template, used for training.
     Args:
         tokenizer (PreTrainedTokenizer): the tokenizer; it should be equipped with a chat template.
@@ -36,27 +27,39 @@ def apply_qa_template(tokenizer: transformers.PreTrainedTokenizer, question: str
     if sent_token is None:
         text_evidences = ' '.join(evidences)
     else:
+        sentences = sent_tokenize(context)
+        context = sent_token.join(sentences)
         text_evidences = sent_token.join(evidences)
+    prompts = []
     if prepend_title:
-        messages = [
-            {'role': "system", 'content': "You are a helpful assistant. "},
-            {'role': "user", 'content': f"Please answer the following question only based on \"{title}\".\nQuestion: {question}"},
-            {'role': "assistant", 'content': f"The related facts are: {text_evidences}\nSo the answer should be: {answer}"}
-        ]
+        if prepend_input:
+            prompts.append(f"This is part of the texts from \"{title}\": \"{context}\"")
+        prompts.append(f"Please answer the following question only based on \"{title}\".")
+        if recite_first:
+            prompts.append(f"Please recite the facts from \"{title}\" that support your answer before answering the question according to the facts.")
     else:
-        messages = [
-            {'role': "system", 'content': "You are a helpful assistant."},
-            {'role': "user", 'content': f"Please answer the following question.\nQuestion: {question}"},
-            {'role': "assistant", 'content': f"The related facts are: {text_evidences}\nSo the answer should be: {answer}"}
-        ]
-    len_input = len(tokenizer.apply_chat_template(messages[:-1], add_generation_prompt=True))
-    return tokenizer.apply_chat_template(messages, add_generation_prompt=False), len_input
+        if prepend_input:
+            prompts.append(f"This is part of the texts: \"{context}\"")
+        prompts.append("Please answer the following question.")
+        if recite_first:
+            prompts.append(f"Please recite the facts from the text that support your answer before answering the question according to the facts.")
+    prompts.append(f"Question: {question}")
+    if recite_first:
+        prompts.append("Please answer in the following format: \"Evidence: <facts>. Answer: <answer>\". Do not output anything else.")
+    if return_answer:
+        if recite_first:
+            output = f"Evidence: {text_evidences} Answer: {answer}"
+        else:
+            output = answer
+        return '\n'.join(prompts), output
+    else:
+        return '\n'.join(prompts)
 
 
 class ContextDataset(Dataset):
     shared_generator: Optional[PreTrainedModel] = None
     
-    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, **kwargs):
+    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, pad_to_max_length: bool=True, recite_first: bool=False, prepend_input: bool=False, **kwargs):
         """
         Args:
             context (str): the context to train on.
@@ -72,6 +75,7 @@ class ContextDataset(Dataset):
         self.tokenizer = tokenizer
         self.model_max_length = model_max_length
         self.sent_token = '<|reserved_special_token_249|>' if sent_token else None
+        self.pad_to_max_length = pad_to_max_length
         texts = context.replace('\0', ' ')
         if sent_token:
             sentences = sent_tokenize(texts)
@@ -93,8 +97,31 @@ class ContextDataset(Dataset):
             )
             self.shared_generator.eval()
         if num_generate_qa > 0:
-            short_qas = self.shortqa_gen(context, num_generate_qa)
-        # TODO: apply the qa template
+            for qa in self.shortqa_gen(context, num_generate_qa):
+                user_msg, assistant_msg = apply_qa_template(
+                    question=qa['Q'],
+                    answer=qa['A'],
+                    evidences=qa['S'],
+                    title=title,
+                    context=context,
+                    prepend_title=prepend_title,
+                    sent_token=self.sent_token,
+                    recite_first=recite_first,
+                    prepend_input=prepend_input,
+                    return_answer=True
+                )
+                messages = [
+                    {'role': 'system', 'content': "You are a helpful assistant."},
+                    {'role': 'user', 'content': user_msg},
+                    {'role': 'assistant', 'content': assistant_msg}
+                ]
+                input_length = len(self.tokenizer.apply_chat_template(messages[:-1], add_generation_prompt=True))
+                input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=False)
+                output_length = len(input_ids) - input_length
+                if len(input_ids) > model_max_length:
+                    input_ids = input_ids[:model_max_length//2] + input_ids[-model_max_length//2:]
+                    input_length = len(input_ids) - output_length
+                self.data.append((input_ids, input_length))
     
     def shortqa_gen(self, context: str, num_generate_qa: int=0):
         generated = []
@@ -173,8 +200,9 @@ class ContextDataset(Dataset):
         # Clip and truncation
         input_ids = input_ids[:self.model_max_length]
         labels = labels[:self.model_max_length]
-        input_ids += [self.tokenizer.pad_token_id] * (self.model_max_length - len(input_ids))
-        labels += [self.ignore_index] * (self.model_max_length - len(labels))
+        if self.pad_to_max_length:
+            input_ids += [self.tokenizer.pad_token_id] * (self.model_max_length - len(input_ids))
+            labels += [self.ignore_index] * (self.model_max_length - len(labels))
         # Transfer to Tensor
         input_ids = torch.LongTensor(input_ids)
         labels = torch.LongTensor(labels)
@@ -188,19 +216,3 @@ class ContextDataset(Dataset):
     
     def __getitem__(self, index):
         return self.preprocessing(self.data[index])
-
-
-class LooGLEDataset(ContextDataset):
-    def __init__(self, datapoint: dict, tokenizer: transformers.PreTrainedTokenizer, **kwargs):
-        """
-        Args:
-            datapoint (dict): a LooGLE-style datapoint.
-            tokenizer (PreTrainedTokenizer): transformers' tokenizer; it should be equipped with a chat template.
-            model_max_length (int): OPTIONAL; the texts will be clipped or padded to model_max_length tokens.
-            block_size (int): OPTIONAL; the number of tokens in a block; a block is the unit of segments and offsets.
-            len_segment (int): OPTIONAL; the number of units in a segment; the article is divided into segments.
-            len_offset (int): OPTIONAL; the number of units per offset; it determines the offset from one segment to the next one.
-            prepend_title (bool): OPTIONAL; whether to prompt the model with the title.
-            sent_token (bool): OPTIONAL; whether to insert a `<|reserved_special_token_249|>` between each two sentences; if enabled, the model must be trained to recognize this token.
-        """
-        super().__init__(datapoint['input'], tokenizer, title=datapoint['title'], **kwargs)
