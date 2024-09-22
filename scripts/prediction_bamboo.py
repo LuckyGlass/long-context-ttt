@@ -30,6 +30,7 @@ def Bamboo_train(full_text: str, training_args, **kwargs):
         "use_fast": True, 
     }
     tokenizer = AutoTokenizer.from_pretrained(kwargs['model_name_or_path'], **tokenizer_kwargs)
+    tokenizer.pad_token = tokenizer.eos_token
     dataset = ContextDataset(full_text, tokenizer, **kwargs)
     return train(dataset, tokenizer, training_args, **kwargs)
 
