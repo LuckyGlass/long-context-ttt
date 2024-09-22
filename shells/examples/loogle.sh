@@ -11,8 +11,7 @@
 
 wandb disabled
 python scripts/prediction_loogle.py \
-    --input_file datasets/loogle/longdep_qa.jsonl \
-    --model_name_or_path models/Meta-Llama-3-8B-Instruct \
+    --model_name_or_path /scratch2/nlp/plm/Meta-Llama-3-8B-Instruct \
     --output_dir models/temp \
     --overwrite_output_dir True \
     --per_device_train_batch_size 1 \
@@ -36,12 +35,11 @@ python scripts/prediction_loogle.py \
     --len_segment 2 \
     --len_offset 1 \
     --model_max_length 8000 \
-    --output_file outputs/ttt-attns-loogle/ttt-attention-loogle.json \
+    --input_file datasets/loogle/longdep_qa.jsonl \
+    --output_file outputs/ttt-loogle/ttt-loogle.json \
     --prepend_input True \
     --recite_first False \
     --dataset_name long_qa \
-    --debug_size 10 \
-    --compute_attention True \
+    --debug_size 1 \
+    --compute_attention False \
     --attention_output_dir outputs/ttt-attns-loogle \
-    --generator_name_or_path models/Meta-Llama-3-8B-Instruct \
-    --num_generate_qa 0 \
