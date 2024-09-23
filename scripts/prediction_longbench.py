@@ -35,7 +35,7 @@ def get_prediction(training_args: TrainingArguments, args: dict, output_file: st
     model_max_length = args['model_max_length']
     dataset2prompt = json.load(open("/scratch/nlp/lijiaqi/long-context-ttt/scripts/longbench/dataset2prompt.json", "r"))
     dataset2maxlen = json.load(open("/scratch/nlp/lijiaqi/long-context-ttt/scripts/longbench/dataset2maxlen.json", "r"))
-
+ 
     # load dataset
     debug_size = args.pop('debug_size')
     for root, dirs, files in os.walk(input_file):
