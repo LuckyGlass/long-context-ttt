@@ -42,4 +42,4 @@ python scripts/prediction_loogle.py \
     --dataset_name long_qa \
     --debug_size 1 \
     --compute_attention False \
-    --attention_output_dir outputs/ttt-attns-loogle \
+    # --attention_output_dir outputs/ttt-attns-loogle \
