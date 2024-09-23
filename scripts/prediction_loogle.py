@@ -136,7 +136,7 @@ def prediction_long(training_args: TrainingArguments, args: dict, output_file: s
         del model, tokenizer
         torch.cuda.empty_cache()
         printGPU("End of task")
-        with open(output_file, "w") as f:
+        with open(output_file, "w+") as f:
             json.dump(results, f, indent=4)
 
 
@@ -214,7 +214,7 @@ def prediction_short(training_args: TrainingArguments, args: dict, output_file: 
         del model, tokenizer
         torch.cuda.empty_cache()
         printGPU("End of task")
-        with open(output_file, "w") as f:
+        with open(output_file, "w+") as f:
             json.dump(results, f, indent=4)
 
 

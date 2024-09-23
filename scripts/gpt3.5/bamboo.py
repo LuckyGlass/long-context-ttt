@@ -25,7 +25,7 @@ logging.basicConfig(
 client = OpenAI(api_key=os.getenv('GPT3_API_KEY'))
 
 # for reportsumsort
-def get_prediction(fine_tuned_model: str, sample: str, max_input_length: int, baseline: bool=False):
+def get_prediction(fine_tuned_model: str, sample: str, max_input_length: int):
     prompt = {
         "system": "You are a helpful assistant.",
         "final_answer": "Given a long text, and 5 events which take place in the long text, each indicated by number identifier [] that represents the shuffled order, (e.g. [0], [2], etc.). Reorder the events according to the original order of the events in the long text. The events should be listed in descending order using identifiers, and the first event in original order should be list first, and the output format should be [] > [], e.g., [0] > [2]. Only response the reorder results, do not say any word or explain.\n\nLong text:\n{content}\nEvents: {events}\n\nGive the reorder results, only give the ordered identifiers of the five events [] > [] > [] > [] > []: "
@@ -107,16 +107,12 @@ if __name__ == '__main__':
             max_input_length = 16000
         results = []
         logging.info("Begin evaluation.")
-        ft_model_name = args.model_name
         for i, data in tqdm.tqdm(enumerate(raw_datasets), total=len(raw_datasets), desc="Eval"): 
             datapoint = eval(data)
-            result = get_prediction(ft_model_name, datapoint, max_input_length, args.baseline)
+            result = get_prediction(args.model_name, datapoint, max_input_length)
             results.append(datapoint)
             with open(args.output_file, "a", encoding="utf-8") as f:
-                f.write(
-                    json.dumps(result)
-                    + "\n"
-                )
+                f.write(json.dumps(result)+ "\n")
     else:
         if args.model_name == 'gpt-3.5-turbo-0125':
             max_input_length = 16000
@@ -143,10 +139,7 @@ if __name__ == '__main__':
             for i, data in tqdm.tqdm(enumerate(raw_datasets), total=len(raw_datasets), desc="Eval"):
                 ft_model_name = ftgpt[i]
                 datapoint = eval(data)
-                result = get_prediction(ft_model_name, datapoint, max_input_length, args.baseline)
+                result = get_prediction(ft_model_name, datapoint, max_input_length)
                 results.append(datapoint)
                 with open(args.output_file, "a", encoding="utf-8") as f:
-                    f.write(
-                        json.dumps(result)
-                        + "\n"
-                    )
+                    f.write(json.dumps(result)+ "\n")
