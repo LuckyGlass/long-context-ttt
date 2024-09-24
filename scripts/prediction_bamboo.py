@@ -9,17 +9,17 @@ from transformers import (
     AutoTokenizer
 )
 from dataclasses import dataclass, field
-from long_ttt.ttt_args import ModelArguments, CustomTrainingArguments, DataTrainingArguments, parse_args
+from typing import Optional
+from long_ttt.ttt_args import ModelArguments, CustomTrainingArguments, DataTrainingArguments, GlobalTestArguments, parse_args
 from long_ttt.train import train
 from long_ttt.context_dataset import ContextDataset
 
 
 @dataclass
-class TestArguments:
-    input_file: str
-    output_file: str
-    prompt_name: str
-    prompt_path: str
+class TestArguments(GlobalTestArguments):
+    output_file: Optional[str] = field(default=None)
+    prompt_name: Optional[str] = field(default=None)
+    prompt_path: Optional[str] = field(default=None)
 
 
 def Bamboo_train(full_text: str, training_args, **kwargs):
