@@ -2,20 +2,20 @@
 #SBATCH -J bamboo
 #SBATCH -N 1
 #SBATCH -p IAI_SLURM_HGX
-#SBATCH --gres=gpu:6
+#SBATCH --gres=gpu:4
 #SBATCH --qos=16gpu-hgx
 #SBATCH --time=72:00:00
-#SBATCH -o /ceph/home/muhan01/ljq/Long-Context/logs/%j-out.log
-#SBATCH -e /ceph/home/muhan01/ljq/Long-Context/logs/%j-err.log
+#SBATCH -o logs/%j-out.log
+#SBATCH -e logs/%j-err.log
 #SBATCH -c 1
 
 wandb disabled
-python scripts/bamboo/prediction_bamboo.py \
-    --model_name_or_path models/Meta-Llama-3-8B-Instruct \
+python scripts/prediction_bamboo.py \
+    --model_name_or_path models/Meta-Llama-3.1-8B-Instruct \
     --output_dir models/temp \
     --overwrite_output_dir True \
     --per_device_train_batch_size 1 \
-    --learning_rate 7e-6 \
+    --learning_rate 1e-6 \
     --weight_decay 1e-4 \
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
@@ -31,11 +31,12 @@ python scripts/bamboo/prediction_bamboo.py \
     --gradient_checkpointing True \
     --full_ft True \
     --gather_batches True \
-    --block_size 1024 \
-    --len_segment 2 \
-    --len_offset 1 \
-    --model_max_length 8000 \
-    --output_file output/ttt-reportsumsort-epoch3.json \
+    --block_size 256 \
+    --len_segment 8 \
+    --len_offset 3 \
+    --model_max_length 14000 \
+    --pad_to_max_length False \
+    --output_file outputs/ttt-reportsumsort-baseline-3.1.json \
     --input_file datasets/bamboo/reportsumsort_16k.jsonl \
     --prompt_name reportsumsort \
     --prompt_path scripts/prompt_bamboo.json \
