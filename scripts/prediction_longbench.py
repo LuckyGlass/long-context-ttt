@@ -40,8 +40,8 @@ def LongbenchTrain(datapoint: dict, training_args: TrainingArguments, **kwargs):
 
 def get_prediction(training_args: TrainingArguments, args: dict, output_file: str, prepend_input: bool=True, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None, input_file: str=""):
     model_max_length = args['model_max_length']
-    dataset2prompt = json.load(open("/scratch/nlp/lijiaqi/long-context-ttt/scripts/longbench/config/dataset2prompt.json", "r"))
-    dataset2maxlen = json.load(open("/scratch/nlp/lijiaqi/long-context-ttt/scripts/longbench/config/dataset2maxlen.json", "r"))
+    dataset2prompt = json.load(open("/scratch/nlp/lijiaqi/long-context-ttt/scripts/longbench/dataset2prompt.json", "r"))
+    dataset2maxlen = json.load(open("/scratch/nlp/lijiaqi/long-context-ttt/scripts/longbench/dataset2maxlen.json", "r"))
 
     # load dataset
     debug_size = args.pop('debug_size')
@@ -57,6 +57,7 @@ def get_prediction(training_args: TrainingArguments, args: dict, output_file: st
 
             #prediction
             results = []
+            c = 0
             for sample in samples:
                 model, tokenizer = LongbenchTrain(sample, training_args, **args)
                 for param in model.parameters():
@@ -107,13 +108,13 @@ def get_prediction(training_args: TrainingArguments, args: dict, output_file: st
                 del model, tokenizer
                 torch.cuda.empty_cache()
                 printGPU("End of task")
-                with open(output_file+dataset, "a+") as f:
-                    json.dump(results, f, indent=4)
-                    
-                with open(output_file+dataset, "a", encoding="utf-8") as f:
+                if not os.path.exists(output_file):
+                    os.makedirs(output_file)
+                with open(output_file+dataset, "a+", encoding="utf-8") as f:
                     json.dump({"pred": pred, "answers": sample["answers"], "all_classes": sample["all_classes"], "length": sample["length"], "_id": sample["_id"]},f, ensure_ascii=False)
                     f.write('\n')
-
+                c += 1
+                print('====================Finish', c)
 
 def main():
     training_args, test_args, args = parse_args(

@@ -10,7 +10,7 @@
 #SBATCH -c 1
 
 wandb disabled
-python scripts/longbench/prediction_longbench.py \
+python scripts/prediction_longbench.py \
     --model_name_or_path /scratch2/nlp/plm/Meta-Llama-3-8B-Instruct \
     --per_device_train_batch_size 1 \
     --output_dir models/temp \
@@ -35,11 +35,11 @@ python scripts/longbench/prediction_longbench.py \
     --len_offset 1 \
     --model_max_length 8000 \
     --input_file datasets/longbench/ \
-    --output_file outputs/ttt-longbench/ \
-    --prepend_input False \
+    --output_file outputs/longbench-ttt-with-input/ \
+    --prepend_input True \
     --recite_first False \
     --debug_size 1 \
-    --compute_attention False \
+    # --compute_attention False \
     # --attention_output_dir outputs/ttt-attns-loogle \
     # --overwrite_output_dir True \
     # --dataset_name long_qa \

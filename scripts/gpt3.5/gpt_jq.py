@@ -151,31 +151,32 @@ class FTGPT:
         
         max_gen = 500
         encoding = tiktoken.get_encoding("cl100k_base")
-        for qa_pair in datapoint['qa_pairs']:
-            prompt_format = "Please answer the question based on the long texts from \"{title}\" below. \n{input}\nQuestion: {Q}\nAnswer: "
-            prompt = prompt_format.format(title=datapoint["title"], input=datapoint['input'], Q=qa_pair['Q'])
-            # clip the input to max_input_length
-            encoded_input = encoding.encode(prompt)
-            if len(encoded_input) > max_input_length:
-                encoded_input = encoded_input[:max_input_length//2] + encoded_input[-max_input_length//2:]
-                input_text = encoding.decode(encoded_input)
-            else:
-                input_text = prompt
+        
+        prompt_format = "Please answer the question based on the long texts from \"{title}\" below. \n{input}\nQuestion: {Q}\nAnswer: "
+        prompt = prompt_format.format(title=None, input=datapoint['context'], Q=datapoint['input'])
+        # clip the input to max_input_length
+        encoded_input = encoding.encode(prompt)
+        if len(encoded_input) > max_input_length:
+            encoded_input = encoded_input[:max_input_length//2] + encoded_input[-max_input_length//2:]
+            input_text = encoding.decode(encoded_input)
+        else:
+            input_text = prompt
 
-            completion = self.client.chat.completions.create(
-                model=fine_tuned_model,
-                messages = [
-                    #{'role': 'system', 'content': "Please answer the question based on the long texts. If you are not sure about the answer, only output \'Not sure\'. "},
-                    #{'role': 'user', 'content': input_text}
-                    {'role': 'system', 'content': input_text},
-                ],
-                temperature=0.0,
-                top_p=1,
-                max_tokens=max_gen,
-                frequency_penalty = 0,
-                presence_penalty = 0
-            )
-            qa_pair['pred'] = completion.choices[0].message.content
+        completion = self.client.chat.completions.create(
+            model=fine_tuned_model,
+            messages = [
+                #{'role': 'system', 'content': "Please answer the question based on the long texts. If you are not sure about the answer, only output \'Not sure\'. "},
+                #{'role': 'user', 'content': input_text}
+                {'role': 'system', 'content': input_text},
+            ],
+            temperature=0.0,
+            top_p=1,
+            max_tokens=max_gen,
+            frequency_penalty = 0,
+            presence_penalty = 0
+        )
+        print(completion)
+        datapoint['pred'] = completion.choices[0].message.content
                 
                 
 # check the format of the dataset
@@ -229,7 +230,7 @@ def check_format(data_path: str):
         print("No errors found")
 
 
-def dump_data(ftdataset, title: str = None, input_text: str = None, output_path='output/chat.jsonl'):
+def dump_data(ftdataset,data_name: str = None, title: str = None, input_text: str = None, output_path='output/'):
     """
     Args:
         ftdataset (_type_): 已经创建好的ftdataset类
@@ -250,8 +251,9 @@ def dump_data(ftdataset, title: str = None, input_text: str = None, output_path=
             new_ftdataset = FTDataset(block_size=blocksize, offset=offset)
             training_data = new_ftdataset.process(title, input_text)
     logging.debug(f"#Datapoints = {len(training_data)}")
-
-    with open(output_path, 'w') as file:
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+    with open(output_path+data_name, 'w') as file:
         for data in training_data:
             file.write(json.dumps(data) + '\n')
     logging.info(f"Dump the datapoints into {output_path}")
