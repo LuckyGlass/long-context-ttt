@@ -88,6 +88,7 @@ class ContextDataset(Dataset):
         len_offset = len_offset * block_size
         # Generate datapoints
         self.data = [input_ids[s:s+len_segment] for s in range(0, len(input_ids), len_offset)]
+        self.num_segments = len(self.data)  # record the number of context datapoints
         # Generate QA
         if self.shared_generator is None and generator_name_or_path is not None:
             self.shared_generator = AutoModelForCausalLM.from_pretrained(
@@ -122,6 +123,14 @@ class ContextDataset(Dataset):
                     input_ids = input_ids[:model_max_length//2] + input_ids[-model_max_length//2:]
                     input_length = len(input_ids) - output_length
                 self.data.append((input_ids, input_length))
+        # Add a tag - whether to involve synthetic QA pairs
+        self.involve_qa = False
+    
+    def enable_qa(self):
+        self.involve_qa = True
+    
+    def disable_qa(self):
+        self.involve_qa = False
     
     def shortqa_gen(self, context: str, num_generate_qa: int=0):
         generated = []
@@ -188,7 +197,11 @@ class ContextDataset(Dataset):
         return generated
     
     def __len__(self):
-        return len(self.data)
+        # Modify __len__ to decide whether to involve synthetic QA pairs
+        if self.involve_qa:
+            return len(self.data)
+        else:
+            return self.num_segments  # the first several datapoints are the context
 
     def preprocessing(self, example):
         if isinstance(example, tuple):
