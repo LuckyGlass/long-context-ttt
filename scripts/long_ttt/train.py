@@ -4,13 +4,13 @@ from transformers import (
     AutoTokenizer,
     PreTrainedTokenizer
 )
-from torch.utils.data import Dataset
 from .model import load_trainer
+from .context_dataset import ContextDataset
 from typing import Optional
 from copy import deepcopy
 
 
-def train(dataset: Dataset, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, **kwargs):
+def train(dataset: ContextDataset, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, involve_qa_epochs: int=0, **kwargs):
     """Fine-tune the model and the corresponding tokenizer.
     Args:
         dataset (Dataset): the dataset to train on.
@@ -31,8 +31,17 @@ def train(dataset: Dataset, tokenizer: PreTrainedTokenizer, training_args: Train
     # load tokenzier
     torch.cuda.empty_cache()  # Manually release memory
     # Load and finetune the model
+    dataset.disable_qa()
     trainer, model = load_trainer(dataset, tokenizer, training_args, **kwargs)
     trainer.train()
+    # Load the dataset with QA pairs and continue-finetune the model
+    if involve_qa_epochs > 0:
+        dataset.enable_qa()
+        training_args_syn = deepcopy(training_args)
+        training_args_syn.num_train_epochs = involve_qa_epochs
+        trainer_syn, model = load_trainer(dataset, tokenizer, training_args_syn, model=model, optimizer=trainer.optimizer, **kwargs)
+        trainer_syn.train()
+    # Clear cache
     for param in model.parameters():
         if param.requires_grad:
             param.grad = None

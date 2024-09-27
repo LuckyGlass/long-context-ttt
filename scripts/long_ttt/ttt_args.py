@@ -68,6 +68,7 @@ class CustomTrainingArguments:
     load_in_4bit: bool = field(default=False)
     load_in_8bit: bool = field(default=False)
     gather_batches: bool = field(default=False)
+    involve_qa_epochs: int = field(default=0)
     
     def __post_init__(self):
         if self.use_lora and self.full_ft:
