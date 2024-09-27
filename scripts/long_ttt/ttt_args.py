@@ -68,19 +68,10 @@ class CustomTrainingArguments:
     load_in_4bit: bool = field(default=False)
     load_in_8bit: bool = field(default=False)
     gather_batches: bool = field(default=False)
-    enable_sequential_training: bool = field(default=False)
-    sequential_training_epochs: Optional[int] = field(default=None)
     
     def __post_init__(self):
         if self.use_lora and self.full_ft:
             raise ValueError("--use_lora is in conflict with --full_ft")
-        if self.enable_sequential_training and self.sequential_training_epochs is None:
-            raise ValueError("enable_sequential_training=True while sequential_training_epochs is not assigned.")
-        if self.enable_sequential_training and self.sequential_training_epochs <= 0:
-            raise ValueError("sequential_training_epochs is assigned a non-positive value. If you want to disable sequential training, please set enable_sequential_training to False.")
-        if (not self.enable_sequential_training) and self.sequential_training_epochs is not None:
-            self.sequential_training_epochs = None
-            logging.warning("sequential_training_epochs is assigned with enable_sequential_training set to False. sequential_training_epochs will be ignored.")
 
 
 @dataclass
