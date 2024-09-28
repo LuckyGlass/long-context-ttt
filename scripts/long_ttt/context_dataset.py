@@ -58,8 +58,6 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
 
 
 class ContextDataset(Dataset):
-    shared_generator: Optional[PreTrainedModel] = None
-    
     def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, pad_to_max_length: bool=True, recite_first: bool=False, prepend_input: bool=False, **kwargs):
         """
         Args:
@@ -91,15 +89,16 @@ class ContextDataset(Dataset):
         self.data = [input_ids[s:s+len_segment] for s in range(0, len(input_ids), len_offset)]
         self.num_segments = len(self.data)  # record the number of context datapoints
         # Generate QA
-        if self.shared_generator is None and generator_name_or_path is not None:
-            self.shared_generator = AutoModelForCausalLM.from_pretrained(
+        generator = None
+        if generator_name_or_path is not None and num_generate_qa > 0:
+            generator = AutoModelForCausalLM.from_pretrained(
                 generator_name_or_path,
                 trust_remote_code=True,
                 device_map="auto",
             )
-            self.shared_generator.eval()
+            generator.eval()
         if num_generate_qa > 0:
-            temp_qas = self.shortqa_gen(context, num_generate_qa)
+            temp_qas = self.shortqa_gen(generator, context, num_generate_qa)
             torch.cuda.empty_cache()
             for qa in temp_qas:
                 user_msg, assistant_msg = apply_qa_template(
@@ -127,6 +126,7 @@ class ContextDataset(Dataset):
                     input_length = len(input_ids) - output_length
                 self.data.append((input_ids, input_length))
         # Add a tag - whether to involve synthetic QA pairs
+        del generator
         self.involve_qa = False
     
     def enable_qa(self):
@@ -136,7 +136,7 @@ class ContextDataset(Dataset):
         self.involve_qa = False
     
     @torch.no_grad()
-    def shortqa_gen(self, full_context: str, num_generate_qa: int=0):
+    def shortqa_gen(self, generator, full_context: str, num_generate_qa: int=0):
         generated = []
         texts = sent_tokenize(full_context)
         c = 0
@@ -154,12 +154,12 @@ class ContextDataset(Dataset):
                     'content': f"You are given a piece of text as the context. You should generate ONLY one question and the corresponding answer according to the context. You should also select one or more original sentences in the context as the evidences. Please answer in the following format:\nQuestion: [question]\nAnswer: [answer]\nEvidence:\n- [evidence 1]\n- [evidence 2]\n...\nPlease DON'T output quotes when outputing evidences. The following is the piece of text: {context}"
                 }
             ]
-            input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt").to(self.shared_generator.device)
-            mask_attention = torch.ones(input_ids.shape, dtype=torch.long, device=self.shared_generator.device)
+            input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt")
+            mask_attention = torch.ones_like(input_ids)
             terminators = [self.tokenizer.eos_token_id, self.tokenizer.convert_tokens_to_ids("<|eot_id|>")]
             num_of_trials = 0
             while True:
-                outputs = self.shared_generator.generate(
+                outputs = generator.generate(
                     input_ids,
                     max_new_tokens=1024,
                     attention_mask=mask_attention,
