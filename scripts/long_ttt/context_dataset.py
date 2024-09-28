@@ -8,7 +8,8 @@ from transformers import (
 )
 from typing import Optional
 import torch
-
+from random import randint
+import tqdm
 from nltk.tokenize import sent_tokenize
 
 def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list[str]=[], title: Optional[str]=None, context: Optional[str]=None, prepend_title: bool=False, sent_token: Optional[str]=None, recite_first: bool=False, prepend_input: bool=False, return_answer: bool=False):
@@ -135,18 +136,14 @@ class ContextDataset(Dataset):
         self.involve_qa = False
     
     @torch.no_grad()
-    def shortqa_gen(self, context: str, num_generate_qa: int=0):
+    def shortqa_gen(self, full_context: str, num_generate_qa: int=0):
         generated = []
-        texts = sent_tokenize(context)
-        print(len(texts))
+        texts = sent_tokenize(full_context)
         c = 0
-        while len(texts) >= 15:
-            if len(texts) >= 25:
-                context = " ".join(texts[:25])
-                texts = texts[25:]
-            else:
-                context = " ".join(texts)
-                texts = []
+        assert len(texts) >= 25
+        for _ in tqdm.tqdm(range(num_generate_qa), desc="Generate QA"):
+            st_pos = randint(0, len(texts) - 25)
+            context = ' '.join(texts[st_pos:st_pos+25])
             messages = [
                 {
                     'role': "system",
@@ -171,8 +168,6 @@ class ContextDataset(Dataset):
                     do_sample=False,
                 )
                 response = self.tokenizer.decode(outputs[0][input_ids.shape[-1]:], skip_special_tokens=True)
-                print(response)
-                print('-' * 10)
                 question_position = response.find("Question:")
                 answer_position = response.find("Answer:")
                 evidence_position = response.find("Evidence:")
@@ -187,16 +182,11 @@ class ContextDataset(Dataset):
                         break
                     continue
                 else:
-                    print('=====================================')
                     question = response[question_position+9:answer_position].strip()
                     answer = response[answer_position+7:evidence_position].strip()
                     evidence = response[evidence_position+9:].strip()
                     generated.append({"Q":question, "A":answer, "S":evidence})
                     break
-
-        if len(generated) > num_generate_qa:
-            generated = generated[:num_generate_qa+1]
-
         return generated
     
     def __len__(self):
