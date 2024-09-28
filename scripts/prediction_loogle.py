@@ -16,6 +16,7 @@ from long_ttt.ttt_args import (
 )
 from long_ttt.context_dataset import ContextDataset, apply_qa_template
 from long_ttt.utils import get_average_attention, printGPU
+from long_ttt.model import load_tokenizer
 from typing import Optional
 import os
 
@@ -49,14 +50,7 @@ def LooGLEtrain(datapoint: dict, training_args: TrainingArguments, **kwargs):
     Returns:
         model_tokenizer_pair (tuple[PreTrainedModel, PreTrainedTokenizer]): the fine-tuned model and the corresponding tokenizer.
     """
-    tokenizer_kwargs = {
-        "cache_dir": kwargs.get("cache_dir", None),
-        "use_auth_token": kwargs.get("use_auth_token", False),
-        "revision": kwargs.get("model_revision", "main"),
-        "use_fast": True, 
-    }
-    tokenizer = AutoTokenizer.from_pretrained(kwargs['model_name_or_path'], **tokenizer_kwargs)
-    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer = load_tokenizer(kwargs['model_name_or_path'])
     dataset = ContextDataset(datapoint['input'], tokenizer, title=datapoint['title'], **kwargs)
     return train(dataset, tokenizer, training_args, **kwargs)
 
