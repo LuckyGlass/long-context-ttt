@@ -14,8 +14,8 @@ from long_ttt.ttt_args import (
     GlobalTestArguments,
     parse_args
 )
-from long_ttt.context_dataset import ContextDataset
-from long_ttt.utils import get_average_attention
+from long_ttt.context_dataset import ContextDataset, apply_qa_template
+from long_ttt.utils import get_average_attention, printGPU
 from typing import Optional
 import os
 
@@ -140,7 +140,7 @@ def prediction_long(training_args: TrainingArguments, args: dict, output_file: s
             json.dump(results, f, indent=4)
 
 
-def prediction_short(training_args: TrainingArguments, args: dict, output_file: str, prepend_input: bool=True, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None, input_file: str=""):
+def prediction_short(training_args: TrainingArguments, args: dict, output_file: str, prepend_input: bool=True, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None, eval_batch_size: int=1, input_file: str=""):
     model_max_length = args['model_max_length']
     with open(input_file, "r") as f:
         samples = [json.loads(line) for line in f]
@@ -151,43 +151,41 @@ def prediction_short(training_args: TrainingArguments, args: dict, output_file: 
             samples = samples[:debug_size]
     
     results = []
-    for sample in samples:
+    for sample in tqdm.tqdm(samples, desc="Prediction"):
         sample["qa_pairs"] = eval(sample["qa_pairs"])
         model, tokenizer = LooGLEtrain(datapoint=sample, training_args=training_args, **args)
+        if not compute_attention:
+            model.eval()  # Setting the model to eval mode to speed up inference. However, on eval mode the model can't output attentions.
         for param in model.parameters():
             param.grad = None
-        from long_ttt.utils import printGPU
-        printGPU("Eval")
-        for i, qa_pair in enumerate(tqdm.tqdm(sample["qa_pairs"])):
+        printGPU(f"Eval with {len(sample['qa_pairs'])} samples")
+        for i, st_pos in enumerate(tqdm.tqdm(range(0, len(sample['qa_pairs']), eval_batch_size), desc="Sample")):
             torch.cuda.empty_cache()
-            prompts = []
-            prompts += [
-                f"Please answer the following question only based on \"{sample['title']}\"."
-            ]
-            if prepend_input:
-                prompts += [
-                    f"This is part of the texts from \"{sample['title']}\": \"{sample['input']}\""
+            qa_pairs = sample['qa_pairs'][st_pos:st_pos+eval_batch_size]
+            list_input_ids = []
+            for qa_pair in qa_pairs:
+                prompt = apply_qa_template(
+                    question=qa_pair['Q'],
+                    title=sample['title'],
+                    context=sample['input'],
+                    prepend_title=True,
+                    prepend_input=prepend_input,
+                    recite_first=recite_first,
+                    return_answer=False
+                )
+                messages = [
+                    {'role': 'system', 'content': "You are a helpful assistant. "},
+                    {'role': 'user', 'content': '\n'.join(prompt)}
                 ]
-            if recite_first:
-                prompts += [
-                    f"Please recite the facts from \"{sample['title']}\" that support your answer before answering the question according to the facts.",
-                    f"Question: {qa_pair['Q']}",
-                    f"Please answer in the following format: \"Evidence: <facts>. Answer: <answer>\". Do not output anything else.",
-                ]
-            else:
-                prompts += [
-                    f"Question: {qa_pair['Q']}",
-                ]
-                
-            messages = [
-                {'role': 'system', 'content': "You are a helpful assistant. "},
-                {'role': 'user', 'content': '\n'.join(prompts)}
-            ]
+                input_ids = torch.LongTensor(tokenizer.apply_chat_template(messages, add_generation_prompt=True)).flatten()
+                if prepend_input and input_ids.shape[0] > model_max_length:
+                    input_ids = torch.cat((input_ids[:model_max_length//2], input_ids[-model_max_length//2:]))
+                if input_ids.shape[0] < model_max_length:
+                    input_ids = torch.cat((input_ids, torch.LongTensor([tokenizer.pad_token_id] * (model_max_length - input_ids.shape[0]))))
+                list_input_ids.append(input_ids)
             with torch.no_grad():
-                input_ids = torch.LongTensor(tokenizer.apply_chat_template(messages, add_generation_prompt=True))[None, :].to(model.device)
-                if prepend_input and len(input_ids[0]) > model_max_length:
-                    input_ids = torch.cat((input_ids[:, :model_max_length//2], input_ids[:, -model_max_length//2:]), dim=1)
-                mask_attention = torch.ones(input_ids.shape, dtype=torch.long, device=model.device)
+                input_ids = torch.stack(list_input_ids)
+                mask_attention = torch.ne(input_ids, tokenizer.pad_token_id)
                 terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
                 outputs = model.generate(
                     input_ids,
@@ -202,14 +200,15 @@ def prediction_short(training_args: TrainingArguments, args: dict, output_file: 
                     output_attentions=compute_attention,
                     return_dict_in_generate=True,
                 )
-                output = outputs.sequences
+                output_ids = outputs.sequences
                 attentions = None if outputs.attentions is None else outputs.attentions[-1]
                 if compute_attention:
                     get_average_attention(tokenizer, attentions, input_ids, qa_pair['S'], os.path.join(attention_output_dir, f"attn_{sample['title']}_{i}.png"))
-                output_model = output[0][input_ids.shape[-1]:]
-                pred = tokenizer.decode(output_model, skip_special_tokens=True)
-                qa_pair['pred'] = pred
-            del output, attentions, input_ids, output_model
+                output_ids = output_ids[:, input_ids.shape[-1]:]
+                preds = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
+                for qa_pair, pred in zip(qa_pairs, preds):
+                    qa_pair['pred'] = pred
+            del outputs, attentions, input_ids, output_ids
         results.append(sample)
         del model, tokenizer
         torch.cuda.empty_cache()
@@ -237,3 +236,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+                                          

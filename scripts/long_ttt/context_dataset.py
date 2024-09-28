@@ -11,7 +11,7 @@ import torch
 
 from nltk.tokenize import sent_tokenize
 
-def apply_qa_template(question: str, answer: Optional[str]=None, evidences: Optional[list[str]]=None, title: Optional[str]=None, context: Optional[str]=None, prepend_title: bool=False, sent_token: Optional[str]=None, recite_first: bool=False, prepend_input: bool=False, return_answer: bool=False):
+def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list[str]=[], title: Optional[str]=None, context: Optional[str]=None, prepend_title: bool=False, sent_token: Optional[str]=None, recite_first: bool=False, prepend_input: bool=False, return_answer: bool=False):
     """Apply the QA template, used for training.
     Args:
         tokenizer (PreTrainedTokenizer): the tokenizer; it should be equipped with a chat template.
@@ -98,7 +98,9 @@ class ContextDataset(Dataset):
             )
             self.shared_generator.eval()
         if num_generate_qa > 0:
-            for qa in self.shortqa_gen(context, num_generate_qa):
+            temp_qas = self.shortqa_gen(context, num_generate_qa)
+            torch.cuda.empty_cache()
+            for qa in temp_qas:
                 user_msg, assistant_msg = apply_qa_template(
                     question=qa['Q'],
                     answer=qa['A'],
@@ -132,6 +134,7 @@ class ContextDataset(Dataset):
     def disable_qa(self):
         self.involve_qa = False
     
+    @torch.no_grad()
     def shortqa_gen(self, context: str, num_generate_qa: int=0):
         generated = []
         texts = sent_tokenize(context)
@@ -169,6 +172,7 @@ class ContextDataset(Dataset):
                 )
                 response = self.tokenizer.decode(outputs[0][input_ids.shape[-1]:], skip_special_tokens=True)
                 print(response)
+                print('-' * 10)
                 question_position = response.find("Question:")
                 answer_position = response.find("Answer:")
                 evidence_position = response.find("Evidence:")
@@ -193,7 +197,6 @@ class ContextDataset(Dataset):
         if len(generated) > num_generate_qa:
             generated = generated[:num_generate_qa+1]
 
-        print(generated, len(generated))
         return generated
     
     def __len__(self):
