@@ -130,8 +130,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, c
         model, tokenizer = LooGLEtrain(datapoint=sample, training_args=training_args, **args)
         if not compute_attention:
             model.eval()  # Setting the model to eval mode to speed up inference. However, on eval mode the model can't output attentions.
-        for param in model.parameters():
-            param.grad = None
+        torch.cuda.empty_cache()
         printGPU(f"Eval with {len(sample['qa_pairs'])} samples")
         for i, st_pos in enumerate(tqdm.tqdm(range(0, len(sample['qa_pairs']), eval_batch_size), desc="Sample")):
             torch.cuda.empty_cache()
