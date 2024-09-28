@@ -13,6 +13,7 @@ from typing import Optional
 from long_ttt.ttt_args import ModelArguments, CustomTrainingArguments, DataTrainingArguments, GlobalTestArguments, parse_args
 from long_ttt.train import train
 from long_ttt.context_dataset import ContextDataset
+from long_ttt.model import load_tokenizer
 
 
 @dataclass
@@ -23,14 +24,7 @@ class TestArguments(GlobalTestArguments):
 
 
 def Bamboo_train(full_text: str, training_args, **kwargs):
-    tokenizer_kwargs = {
-        "cache_dir": kwargs.get("cache_dir", None),
-        "use_auth_token": kwargs.get("use_auth_token", False),
-        "revision": kwargs.get("model_revision", "main"),
-        "use_fast": True, 
-    }
-    tokenizer = AutoTokenizer.from_pretrained(kwargs['model_name_or_path'], **tokenizer_kwargs)
-    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer = load_tokenizer(kwargs['model_name_or_path'])
     dataset = ContextDataset(full_text, tokenizer, **kwargs)
     return train(dataset, tokenizer, training_args, **kwargs)
 

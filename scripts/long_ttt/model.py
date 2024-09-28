@@ -1,4 +1,5 @@
 from transformers import (
+    AutoTokenizer,
     BitsAndBytesConfig,
     PreTrainedTokenizer,
     TrainingArguments,
@@ -14,6 +15,13 @@ from typing import Optional
 from copy import deepcopy
 import torch
 from torch.utils.data import Dataset
+
+
+def load_tokenizer(model_name_or_path: str):
+    tokenizer_kwargs = {"use_fast": True, }
+    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, **tokenizer_kwargs)
+    tokenizer.pad_token = tokenizer.eos_token
+    return tokenizer
 
 
 def load_base_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, load_in_4bit: bool=False, load_in_8bit: bool=False, **kwargs):
