@@ -12,7 +12,7 @@ from random import randint
 import tqdm
 from nltk.tokenize import sent_tokenize
 
-def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list[str]=[], title: Optional[str]=None, context: Optional[str]=None, prepend_title: bool=False, sent_token: Optional[str]=None, recite_first: bool=False, prepend_input: bool=False, return_answer: bool=False):
+def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list[str]=[], title: Optional[str]=None, context: Optional[str]=None, prepend_title: bool=False, sent_token: Optional[str]=None, recite_first: bool=False, enable_ICL: bool=False, return_answer: bool=False):
     """Apply the QA template, used for training.
     Args:
         tokenizer (PreTrainedTokenizer): the tokenizer; it should be equipped with a chat template.
@@ -33,13 +33,13 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
         text_evidences = sent_token.join(evidences)
     prompts = []
     if prepend_title:
-        if prepend_input:
+        if enable_ICL:
             prompts.append(f"This is part of the texts from \"{title}\": \"{context}\"")
         prompts.append(f"Please answer the following question only based on \"{title}\".")
         if recite_first:
             prompts.append(f"Please recite the facts from \"{title}\" that support your answer before answering the question according to the facts.")
     else:
-        if prepend_input:
+        if enable_ICL:
             prompts.append(f"This is part of the texts: \"{context}\"")
         prompts.append("Please answer the following question.")
         if recite_first:
@@ -58,7 +58,7 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
 
 
 class ContextDataset(Dataset):
-    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, pad_to_max_length: bool=True, recite_first: bool=False, prepend_input: bool=False, **kwargs):
+    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, pad_to_max_length: bool=True, recite_first: bool=False, enable_ICL: bool=False, **kwargs):
         """
         Args:
             context (str): the context to train on.
@@ -110,7 +110,7 @@ class ContextDataset(Dataset):
                     prepend_title=prepend_title,
                     sent_token=self.sent_token,
                     recite_first=recite_first,
-                    prepend_input=prepend_input,
+                    enable_ICL=enable_ICL,
                     return_answer=True
                 )
                 messages = [

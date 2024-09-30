@@ -56,7 +56,7 @@ def LooGLEtrain(datapoint: dict, training_args: TrainingArguments, **kwargs):
 
 
 @torch.no_grad()
-def pred_batch(model, tokenizer, index: int, qa_pairs: list[dict], title: str, context: str, model_max_length: int=8000, prepend_input: bool=False, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None):
+def pred_batch(model, tokenizer, index: int, qa_pairs: list[dict], title: str, context: str, model_max_length: int=8000, enable_ICL: bool=False, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None):
     # Batch
     list_input_ids = []
     for qa_pair in qa_pairs:
@@ -65,7 +65,7 @@ def pred_batch(model, tokenizer, index: int, qa_pairs: list[dict], title: str, c
             title=title,
             context=context,
             prepend_title=True,
-            prepend_input=prepend_input,
+            enable_ICL=enable_ICL,
             recite_first=recite_first,
             return_answer=False
         )
@@ -74,7 +74,7 @@ def pred_batch(model, tokenizer, index: int, qa_pairs: list[dict], title: str, c
             {'role': 'user', 'content': '\n'.join(prompt)}
         ]
         input_ids = torch.LongTensor(tokenizer.apply_chat_template(messages, add_generation_prompt=True)).flatten()
-        if prepend_input and input_ids.shape[0] > model_max_length:
+        if enable_ICL and input_ids.shape[0] > model_max_length:
             input_ids = torch.cat((input_ids[:model_max_length//2], input_ids[-model_max_length//2:]))
         if input_ids.shape[0] < model_max_length:
             input_ids = torch.cat((input_ids, torch.LongTensor([tokenizer.pad_token_id] * (model_max_length - input_ids.shape[0]))))
@@ -142,7 +142,7 @@ def main():
         no_dict=(TrainingArguments,)
     )
     test_args['recite_first'] = args['recite_first']
-    test_args['prepend_input'] = args['prepend_input']
+    test_args['enable_ICL'] = args['enable_ICL']
     if test_args['attention_output_dir'] is not None:
         os.makedirs(test_args['attention_output_dir'], exist_ok=True)
     prediction(training_args, args, **test_args)

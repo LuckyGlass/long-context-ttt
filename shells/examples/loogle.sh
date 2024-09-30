@@ -37,7 +37,7 @@ python scripts/prediction_loogle.py \
     --model_max_length 8000 \
     --input_file datasets/loogle/longdep_qa.jsonl \
     --output_file outputs/ttt-loogle/ttt-loogle.json \
-    --prepend_input True \
+    --enable_ICL True \
     --recite_first False \
     --dataset_name long_qa \
     --debug_size 1 \

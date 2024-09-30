@@ -39,7 +39,7 @@ python scripts/prediction_loogle.py \
     --pad_to_max_length False \
     --input_file datasets/loogle/shortdep_qa.jsonl \
     --output_file outputs/ttt-loogle-short-syn.json \
-    --prepend_input True \
+    --enable_ICL True \
     --recite_first True \
     --compute_attention False \
     --num_generate_qa 10 \

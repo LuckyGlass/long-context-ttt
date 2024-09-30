@@ -36,7 +36,7 @@ python scripts/prediction_longbench.py \
     --model_max_length 8000 \
     --input_file datasets/longbench/ \
     --output_file outputs/longbench-ttt-with-input/ \
-    --prepend_input True \
+    --enable_ICL True \
     --recite_first False \
     --debug_size 1 \
     # --compute_attention False \
