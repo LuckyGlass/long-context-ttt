@@ -99,6 +99,11 @@ class TestArgs(GlobalTestArguments):
         default=False,
         metadata={'help': 'Use GPT4 to evaluate accuracy.'}
     )
+    cpu: bool = field(
+        default=False,
+        metadata={'help': 'Use cpu?'}
+    )
+
 
     zh: bool = field(
         default=False,
@@ -237,7 +242,7 @@ def main():
     dataset = datasets.Dataset.from_list(all_inputs)
     dataloader = torch.utils.data.DataLoader(
         dataset.remove_columns(['length', 'depth', 'needle']), 
-        batch_size=args.batch_size, 
+        batch_size=1, 
         collate_fn=DefaultDataCollator(tokenizer),
         pin_memory=not args.cpu,
     )
@@ -247,7 +252,9 @@ def main():
     for x in tqdm(dataloader, desc="Evaluating"):
         torch.cuda.empty_cache()
         inputs = x.pop("inputs")
-        context_return = x.pop('context_return')
+        context_return = x.pop('context_return')[0]
+        print(context_return)
+        print(type(context_return))
         context_dataset = ContextDataset(
             context=context_return,
             tokenizer=tokenizer,
