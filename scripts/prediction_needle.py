@@ -16,7 +16,7 @@ from transformers import TrainingArguments
 from transformers.utils import logging
 from dataclasses import dataclass, field, asdict
 
-from utils import DefaultDataCollator, FileLogger, makedirs
+from needle_base.utils import DefaultDataCollator, FileLogger, makedirs
 
 import sys
 from pathlib import Path
@@ -32,6 +32,7 @@ from long_ttt.ttt_args import (
     ModelArguments,
     parse_args
 )
+import os
 
 logger = logging.get_logger(__name__)
 
@@ -90,6 +91,10 @@ class TestArgs(GlobalTestArguments):
         metadata={'help': 'The needle content'}
     )
 
+    chat_template: str = field(
+        default="vicuna",
+        metadata={'help': 'Instruction template name in fastchat.'}
+    )
     gpt_eval: bool = field(
         default=False,
         metadata={'help': 'Use GPT4 to evaluate accuracy.'}
@@ -157,12 +162,11 @@ def generate_sample(
     context_input_ids = tokenizer.encode(context, max_length=context_length - description_length - needle_length - prompt_length, truncation=True, add_special_tokens=False)
 
     input_ids = sum([description_input_ids, context_input_ids[:needle_pos], needle_input_ids, context_input_ids[needle_pos:], prompt_input_ids], [])
-    context_ids = sum([context_input_ids[:needle_pos], needle_input_ids, context_input_ids[needle_pos:]])
+    context_ids = sum([context_input_ids[:needle_pos], needle_input_ids, context_input_ids[needle_pos:]], [])
     inputs = tokenizer.decode(input_ids)
     context_return = tokenizer.decode(context_ids)
 
     if chat_template != "none":
-        print(f"{chat_template} chat_template")
         conv = get_conversation_template(chat_template)
         conv.append_message(conv.roles[0], inputs)
         conv.append_message(conv.roles[1], None)
@@ -176,6 +180,7 @@ def main():
     args, training_args, ttt_args = parse_args((TestArgs, TrainingArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)), no_dict=(TrainingArguments, TestArgs))
 
     result_dir = args.result_dir
+    os.makedirs(result_dir, exist_ok=True)
 
     tokenizer = load_tokenizer(ttt_args['model_name_or_path'])
     
