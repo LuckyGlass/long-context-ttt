@@ -84,7 +84,7 @@ class GlobalTestArguments:
     overwrite: bool = field(default=True)
 
 
-def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any]):
+def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any], return_config: bool=False):
     class_set = set()
     for cluster in class_clusters:
         if isinstance(cluster, tuple):
@@ -107,4 +107,9 @@ def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any]):
                 returns += (arg_dict[cluster],)
             else:
                 returns += (dict(vars(arg_dict[cluster])),)
+    if return_config:
+        config = {}
+        for arg in arg_list:
+            config.update(dict(vars(arg)))
+        return returns, config
     return returns
