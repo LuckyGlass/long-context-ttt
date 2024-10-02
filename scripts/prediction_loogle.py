@@ -107,9 +107,9 @@ def pred_batch(model, tokenizer, index: int, qa_pairs: list[dict], title: str, c
         qa_pair['pred'] = pred
 
 
-def prediction(training_args: TrainingArguments, args: dict, output_file: str, compute_attention: bool=False, eval_batch_size: int=1, input_file: str="", overwrite: bool=True, **kwargs):
+def prediction(training_args: TrainingArguments, args: dict, output_file: str, compute_attention: bool=False, eval_batch_size: int=1, input_file: str="", overwrite: bool=True, config: Optional[dict]=None, **kwargs):
     # Resume from checkpoint
-    results = []
+    results = [] if config is None else [config]
     if not overwrite and os.path.exists(output_file):
         logging.info(f"Detect existing output file {output_file}. Resume from the checkpoint.")
         with open(output_file, 'r') as f:
