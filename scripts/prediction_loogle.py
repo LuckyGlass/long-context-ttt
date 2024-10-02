@@ -6,6 +6,7 @@ import tqdm
 import torch
 from transformers import TrainingArguments, HfArgumentParser, AutoTokenizer
 from dataclasses import dataclass, field
+import logging
 from long_ttt.train import train
 from long_ttt.ttt_args import (
     ModelArguments,
@@ -106,7 +107,15 @@ def pred_batch(model, tokenizer, index: int, qa_pairs: list[dict], title: str, c
         qa_pair['pred'] = pred
 
 
-def prediction(training_args: TrainingArguments, args: dict, output_file: str, compute_attention: bool=False, eval_batch_size: int=1, input_file: str="", **kwargs):
+def prediction(training_args: TrainingArguments, args: dict, output_file: str, compute_attention: bool=False, eval_batch_size: int=1, input_file: str="", overwrite: bool=True, **kwargs):
+    # Resume from checkpoint
+    results = []
+    if not overwrite and os.path.exists(output_file):
+        logging.info(f"Detect existing output file {output_file}. Resume from the checkpoint.")
+        with open(output_file, 'r') as f:
+            results = json.load(f)
+        logging.info(f"Load the results of {len(results)} samples.")
+    # Pre-process
     model_max_length = args['model_max_length']
     with open(input_file, "r") as f:
         samples = [json.loads(line) for line in f]
@@ -116,8 +125,9 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, c
         if debug_size is not None:
             samples = samples[:debug_size]
     
-    results = []
-    for sample in tqdm.tqdm(samples, desc="Prediction"):
+    for sample_id, sample in enumerate(tqdm.tqdm(samples, desc="Prediction")):
+        if sample_id < len(results):
+            continue
         torch.cuda.empty_cache()
         printGPU(f"Before training")
         sample["qa_pairs"] = eval(sample["qa_pairs"])
