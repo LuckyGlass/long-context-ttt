@@ -1,3 +1,44 @@
+## 通用参数
+### `ModelArguments`
+模型的参数。
+
+- `model_name_or_path`
+- `model_max_length`：这个参数会决定输入到模型的token数（如果`pad_to_max_length=True`）。
+
+### `DataTrainingArguments`
+通用数据参数，用于从单条长文本生成 `ContextDataset`以及生成测试模板。
+
+- `block_size`
+- `len_segment`
+- `len_offset`
+- `prepend_title`：是否在输入中提示文章名字，如果datapoint不提供title属性，则会被忽略。这个参数会影响synthetic QA生成以及测试时的输入。
+- `recite_first`：是否要求模型先输出evidence，再输出答案。这个参数会影响synthetic QA和测试时的prompt，以及synthetic QA的输出。
+- `enable_ICL`：是否启用ICL。这个参数会影响synthetic QA和测试时的输入。
+- `num_generate_qa`：生成synthetic QA的数量，设置为0时即不引入synthetic QA。如果设置为非零值，则要求指定 `generator_name_or_path`。
+- `generator_name_or_path`：用于生成synthetic QA的模型，需要是指令模型，可以和TTT的基座模型不同。 
+- `sent_token`（暂时弃置）：是否引入标识原文的特殊字符，需要基座模型见过这个特殊字符。这个参数会影响TTT时输入的context、ICL的context，以及synthetic QA中的evidence（如果`recite_first=True`）。
+- `recite_prompt_type`：TODO(?)
+
+### `CustomTrainingArguments`
+TTT所用训练参数，与 `transformers.TrainingArguments` 独立。
+
+- `use_lora`：是否启用LoRA。
+- `lora_rank`
+- `load_in_4bit`
+- `load_in_8bit`
+- `full_ft`：是否全参数微调。
+- `gather_batches`：是否将所有训练样例放入一个batch（整个epoch只更新一次）。
+- `involve_qa_epochs`：在长文本上训练后，引入多少epoch长文本和synthetic QA的混合训练。和 `transformers.TrainingArguments.training_epochs` 混合使用，`training_args` 指定仅在长文本上训练的epoch数，`involve_qa_epochs` 指定在长文本和synthetic QA上混合训练的epoch数。
+
+### `GlobalTestArguments`
+通用的测试参数，通常不同的数据集有不同的测试参数，可以继承自 `GlobalTestArguments`。
+
+- `input_file`：输入文件的位置。
+- `eval_batch_size`
+- `compute_attention`：是否计算attention（目前只支持LooGLE）。
+- `attention_output_dir`：`compute_attention=True` 时，指定输出attention图像的目录；不指定时则不输出图像。
+
+
 ## 实验结果文件  
 实验配置在long-context文档里和overleaf上都有同步。
 所有的实验结果原版输出文件：
@@ -25,7 +66,7 @@
 - len_segment: 现在配置为2
 - len_offset: 现在配置为1
 - output_file: 每次必须更改，最好名称反映参数配置。目前所有输出文件都在output文件夹下。
-- prepend_input: 是否采用ICL
+- enable_ICL: 是否采用ICL
 - recite_first: 是否先prompt模型回答evidence
 - dataset_name: long_qa或者short_qa
 - debug_size: 测试的数据条数
