@@ -126,7 +126,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, c
             samples = samples[:debug_size]
     
     for sample_id, sample in enumerate(tqdm.tqdm(samples, desc="Prediction")):
-        if sample_id < len(results):
+        if sample_id < len(results) - 1:
             continue
         torch.cuda.empty_cache()
         printGPU(f"Before training")
