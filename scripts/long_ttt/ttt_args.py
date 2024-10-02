@@ -81,6 +81,7 @@ class GlobalTestArguments:
     compute_attention: bool = field(default=False)
     attention_output_dir: Optional[str] = field(default=None)
     eval_batch_size: int = field(default=1)
+    overwrite: bool = field(default=True)
 
 
 def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any]):
