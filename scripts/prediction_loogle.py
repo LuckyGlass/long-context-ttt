@@ -147,15 +147,16 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, c
 
 
 def main():
-    training_args, test_args, args = parse_args(
+    (training_args, test_args, args), config = parse_args(
         (TrainingArguments, TestArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)),
-        no_dict=(TrainingArguments,)
+        no_dict=(TrainingArguments,),
+        return_config=True
     )
     test_args['recite_first'] = args['recite_first']
     test_args['enable_ICL'] = args['enable_ICL']
     if test_args['attention_output_dir'] is not None:
         os.makedirs(test_args['attention_output_dir'], exist_ok=True)
-    prediction(training_args, args, **test_args)
+    prediction(training_args, args, config=config, **test_args)
     
 if __name__ == "__main__":
     main()
