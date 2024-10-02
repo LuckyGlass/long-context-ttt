@@ -33,6 +33,7 @@ from long_ttt.ttt_args import (
     parse_args
 )
 import os
+import time
 
 logger = logging.get_logger(__name__)
 
@@ -180,7 +181,6 @@ def generate_sample(
     return inputs, context_return, needle
 
 
-@torch.no_grad()
 def main():
     args, training_args, ttt_args = parse_args((TestArgs, TrainingArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)), no_dict=(TrainingArguments, TestArgs))
 
@@ -251,28 +251,37 @@ def main():
     all_outputs = []
     for x in tqdm(dataloader, desc="Evaluating"):
         torch.cuda.empty_cache()
+        time1 = time.time()
         inputs = x.pop("inputs")
         context_return = x.pop('context_return')[0]
-        print(context_return)
-        print(type(context_return))
         context_dataset = ContextDataset(
             context=context_return,
             tokenizer=tokenizer,
             **ttt_args
         )
+        time2 = time.time()
+        print(f"DEBUG 1: {time2 - time1}")
         model = train(context_dataset, tokenizer, training_args, **ttt_args)[0]
-
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=50,
-            num_beams=1,
-            do_sample=False,
-            temperature=1.,
-            pad_token_id=tokenizer.pad_token_id,
-        )
+        time3 = time.time()
+        print(f"DEBUG 2: {time3 - time2}")
+        with torch.no_grad():
+            model.eval()
+            inputs = tokenizer(inputs, add_special_tokens=False, return_tensors='pt')
+            outputs = model.generate(
+                input_ids=inputs.input_ids,
+                attention_mask=inputs.attention_mask,
+                max_new_tokens=50,
+                num_beams=1,
+                do_sample=False,
+                temperature=1.,
+                pad_token_id=tokenizer.pad_token_id,
+            )
+        time4 = time.time()
+        print(f"DEBUG 3: {time4 - time3}")
         outputs = outputs[:, inputs['input_ids'].shape[1]:].contiguous()
 
         all_outputs.extend(outputs.tolist())
+        del model, outputs
 
     # Decode and save the outputs and the config
     results = {l: {d: [] for d in test_depths} for l in test_lengths}
