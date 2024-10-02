@@ -110,6 +110,6 @@ def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any], retur
     if return_config:
         config = {}
         for arg in arg_list:
-            config.update(dict(vars(arg)))
+            config.update({k: v for k, v in dict(vars(arg)).items() if isinstance(v, int|float|bool|str)})
         return returns, config
     return returns
