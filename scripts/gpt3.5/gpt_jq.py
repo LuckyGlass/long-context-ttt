@@ -139,7 +139,7 @@ class FTGPT:
 
     # for loogle
     # 这个是针对loogl格式的，不适用于其他数据集
-    def get_prediction(self, fine_tuned_model: str, datapoint, max_input_length: int):
+    def get_prediction(self, fine_tuned_model: str, datapoint, prompt_ins: str, max_input_length: int, max_gen: int):
         """
         Args:
             fine_tuned_model (str): 可以直接传递给openai的模型编号，既可以是微调过的模型也可是原始模型gpt3.5的名称
@@ -149,11 +149,10 @@ class FTGPT:
             因为datapoint是一个dict，作为引用传递，所以这个函数不返回任何值，而是直接修改datapoint里的内容
         """
         
-        max_gen = 500
         encoding = tiktoken.get_encoding("cl100k_base")
         
-        prompt_format = "Please answer the question based on the long texts from \"{title}\" below. \n{input}\nQuestion: {Q}\nAnswer: "
-        prompt = prompt_format.format(title=None, input=datapoint['context'], Q=datapoint['input'])
+        prompt = f"Here is the [context] for the task. \n {datapoint['context']}\nQuestion: {datapoint['input']}\n" + prompt_ins
+
         # clip the input to max_input_length
         encoded_input = encoding.encode(prompt)
         if len(encoded_input) > max_input_length:
@@ -230,7 +229,7 @@ def check_format(data_path: str):
         print("No errors found")
 
 
-def dump_data(ftdataset,data_name: str = None, title: str = None, input_text: str = None, output_path='output/'):
+def dump_data(ftdataset,data_name: str = None, title: str = None, input_text: str = None, output_path: str = None):
     """
     Args:
         ftdataset (_type_): 已经创建好的ftdataset类

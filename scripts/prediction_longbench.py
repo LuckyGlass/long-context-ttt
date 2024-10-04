@@ -15,10 +15,10 @@ from long_ttt.ttt_args import (
     parse_args
 )
 from long_ttt.context_dataset import ContextDataset
-from long_ttt.utils import get_average_attention
 from typing import Optional
 import os
 from long_ttt.utils import printGPU
+from long_ttt.model import load_tokenizer
 
 @dataclass
 class TestArguments(GlobalTestArguments):
@@ -26,19 +26,12 @@ class TestArguments(GlobalTestArguments):
 
 
 def LongbenchTrain(datapoint: dict, training_args: TrainingArguments, **kwargs):
-    tokenizer_kwargs = {
-        "cache_dir": kwargs.get("cache_dir", None),
-        "use_auth_token": kwargs.get("use_auth_token", False),
-        "revision": kwargs.get("model_revision", "main"),
-        "use_fast": True, 
-    }
-    tokenizer = AutoTokenizer.from_pretrained(kwargs['model_name_or_path'], **tokenizer_kwargs)
-    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer = load_tokenizer(kwargs['model_name_or_path'])
     dataset = ContextDataset(datapoint['context'], tokenizer, **kwargs)
     return train(dataset, tokenizer, training_args, **kwargs)
 
 
-def get_prediction(training_args: TrainingArguments, args: dict, output_file: str, prepend_input: bool=True, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None, input_file: str=""):
+def get_prediction(training_args: TrainingArguments, args: dict, output_file: str, enable_ICL: bool=True, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None, input_file: str=""):
     model_max_length = args['model_max_length']
     dataset2prompt = json.load(open("/scratch/nlp/lijiaqi/long-context-ttt/scripts/longbench/dataset2prompt.json", "r"))
     dataset2maxlen = json.load(open("/scratch/nlp/lijiaqi/long-context-ttt/scripts/longbench/dataset2maxlen.json", "r"))
@@ -67,7 +60,7 @@ def get_prediction(training_args: TrainingArguments, args: dict, output_file: st
 
                 torch.cuda.empty_cache()
                 prompts = []
-                if prepend_input:
+                if enable_ICL:
                     prompts += [f"Here is the [context] for the task: {sample['context']}" ]
                 if recite_first:
                     prompts += [f"Please recite the facts from the context that support your answer before answering the question according to the facts."]
@@ -81,7 +74,7 @@ def get_prediction(training_args: TrainingArguments, args: dict, output_file: st
 
                 with torch.no_grad():
                     input_ids = torch.LongTensor(tokenizer.apply_chat_template(messages, add_generation_prompt=True))[None, :]
-                    if prepend_input and len(input_ids[0]) > model_max_length:
+                    if enable_ICL and len(input_ids[0]) > model_max_length:
                         input_ids = torch.cat((input_ids[:, :model_max_length//2], input_ids[:, -model_max_length//2:]), dim=1)
                     mask_attention = torch.ones(input_ids.shape, dtype=torch.long)
                     terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
@@ -121,8 +114,9 @@ def main():
         (TrainingArguments, TestArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)),
         no_dict=(TrainingArguments,)
     )
+    del test_args['eval_batch_size']
     test_args['recite_first'] = args['recite_first']
-    test_args['prepend_input'] = args['prepend_input']
+    test_args['enable_ICL'] = args['enable_ICL']
     if test_args['attention_output_dir'] is not None:
         os.makedirs(test_args['attention_output_dir'], exist_ok=True)
     
