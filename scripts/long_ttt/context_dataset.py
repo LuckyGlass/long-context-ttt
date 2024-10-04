@@ -33,15 +33,15 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
         text_evidences = sent_token.join(evidences)
     prompts = []
     if prepend_title:
+        prompts.append(f"Please answer the following question only based on \"{title}\".")
         if enable_ICL:
             prompts.append(f"This is part of the texts from \"{title}\": \"{context}\"")
-        prompts.append(f"Please answer the following question only based on \"{title}\".")
         if recite_first:
             prompts.append(f"Please recite the facts from \"{title}\" that support your answer before answering the question according to the facts.")
     else:
+        prompts.append("Please answer the following question.")
         if enable_ICL:
             prompts.append(f"This is part of the texts: \"{context}\"")
-        prompts.append("Please answer the following question.")
         if recite_first:
             prompts.append(f"Please recite the facts from the text that support your answer before answering the question according to the facts.")
     prompts.append(f"Question: {question}")

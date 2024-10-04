@@ -72,7 +72,7 @@ def pred_batch(model, tokenizer, index: int, qa_pairs: list[dict], title: str, c
         )
         messages = [
             {'role': 'system', 'content': "You are a helpful assistant. "},
-            {'role': 'user', 'content': '\n'.join(prompt)}
+            {'role': 'user', 'content': prompt}
         ]
         input_ids = torch.LongTensor(tokenizer.apply_chat_template(messages, add_generation_prompt=True)).flatten()
         if enable_ICL and input_ids.shape[0] > model_max_length:
