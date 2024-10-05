@@ -35,10 +35,10 @@ python scripts/prediction_longbench.py \
     --len_offset 1 \
     --model_max_length 8000 \
     --input_file datasets/longbench/ \
-    --output_file outputs/longbench-ttt-with-input/ \
-    --enable_ICL True \
+    --output_file output-tttwithinput/ \
+    --prepend_input True \
     --recite_first False \
-    --debug_size 1 \
+    # --debug_size 1 \
     # --compute_attention False \
     # --attention_output_dir outputs/ttt-attns-loogle \
     # --overwrite_output_dir True \
