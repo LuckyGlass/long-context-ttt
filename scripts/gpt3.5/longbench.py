@@ -14,17 +14,17 @@ from nltk import sent_tokenize
 from openai import OpenAI
 from gpt_jq import FTDataset, FTGPT, dump_data
 
-logging.basicConfig(
-    filename='logs/debug.log',
-    level=logging.INFO,
-    format='%(levelname)s - %(message)s',
-    filemode='w'
-)
+# logging.basicConfig(
+#     filename='logs/debug.log',
+#     level=logging.INFO,
+#     format='%(levelname)s - %(message)s',
+#     filemode='w'
+# )
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default="gpt-3.5-turbo-0125")
-    parser.add_argument('--dataset', type=str, default='/scratch/nlp/lijiaqi/long-context-ttt/datasets/longbench/', help='file path of the dataset.')
+    parser.add_argument('--dataset', type=str, default='/scratch/nlp/lijiaqi/long-context-ttt1/datasets/longbench/', help='file path of the dataset.')
     parser.add_argument('--api_key', type=str, default="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")
     parser.add_argument('--debug_size', type=int, default=None)
     parser.add_argument('--block_size', type=int, default=2048)
