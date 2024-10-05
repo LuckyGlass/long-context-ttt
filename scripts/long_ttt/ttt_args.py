@@ -56,8 +56,8 @@ class DataTrainingArguments:
     num_generate_qa: int = field(default=0)
     generator_name_or_path: Optional[str] = field(default=None)
     pad_to_max_length: bool = field(default=True)
-    recite_first: bool = field(default=False)
-    enable_ICL: bool = field(default=True)
+    ttt_recite_first: bool = field(default=False)
+    ttt_enable_ICL: bool = field(default=True)
 
 
 @dataclass
@@ -82,6 +82,8 @@ class GlobalTestArguments:
     attention_output_dir: Optional[str] = field(default=None)
     eval_batch_size: int = field(default=1)
     overwrite: bool = field(default=True)
+    enable_ICL: bool = field(default=True)
+    recite_first: bool = field(default=False)
 
 
 def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any], return_config: bool=False):

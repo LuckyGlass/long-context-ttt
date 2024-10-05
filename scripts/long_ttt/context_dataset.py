@@ -58,7 +58,7 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
 
 
 class ContextDataset(Dataset):
-    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, pad_to_max_length: bool=True, recite_first: bool=False, enable_ICL: bool=False, **kwargs):
+    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, **kwargs):
         """
         Args:
             context (str): the context to train on.
@@ -109,8 +109,8 @@ class ContextDataset(Dataset):
                     context=context,
                     prepend_title=prepend_title,
                     sent_token=self.sent_token,
-                    recite_first=recite_first,
-                    enable_ICL=enable_ICL,
+                    recite_first=ttt_recite_first,
+                    enable_ICL=ttt_enable_ICL,
                     return_answer=True
                 )
                 messages = [
