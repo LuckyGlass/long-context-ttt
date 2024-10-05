@@ -114,6 +114,7 @@ def main():
         (TrainingArguments, TestArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)),
         no_dict=(TrainingArguments,)
     )
+    del test_args['eval_batch_size']
     test_args['recite_first'] = args['recite_first']
     test_args['enable_ICL'] = args['enable_ICL']
     if test_args['attention_output_dir'] is not None:
