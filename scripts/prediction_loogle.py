@@ -152,8 +152,6 @@ def main():
         no_dict=(TrainingArguments,),
         return_config=True
     )
-    test_args['recite_first'] = args['recite_first']
-    test_args['enable_ICL'] = args['enable_ICL']
     if test_args['attention_output_dir'] is not None:
         os.makedirs(test_args['attention_output_dir'], exist_ok=True)
     prediction(training_args, args, config=config, **test_args)
