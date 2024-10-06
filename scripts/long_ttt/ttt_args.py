@@ -58,6 +58,7 @@ class DataTrainingArguments:
     pad_to_max_length: bool = field(default=True)
     ttt_recite_first: bool = field(default=False)
     ttt_enable_ICL: bool = field(default=True)
+    qa_loss_weight: float = field(default=1.0)
 
 
 @dataclass
