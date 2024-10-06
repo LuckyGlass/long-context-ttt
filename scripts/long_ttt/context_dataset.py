@@ -58,7 +58,7 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
 
 
 class ContextDataset(Dataset):
-    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, **kwargs):
+    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, **kwargs):
         """
         Args:
             context (str): the context to train on.
@@ -75,6 +75,7 @@ class ContextDataset(Dataset):
         self.model_max_length = model_max_length
         self.sent_token = '<|reserved_special_token_249|>' if sent_token else None
         self.pad_to_max_length = pad_to_max_length
+        self.qa_loss_weight = qa_loss_weight
         texts = context.replace('\0', ' ')
         if sent_token:
             sentences = sent_tokenize(texts)
@@ -196,7 +197,7 @@ class ContextDataset(Dataset):
         else:
             return self.num_segments  # the first several datapoints are the context
 
-    def preprocessing(self, example):
+    def preprocessing(self, example, index):
         if isinstance(example, tuple):
             example, len_input = example
         else:
@@ -217,8 +218,9 @@ class ContextDataset(Dataset):
         return {
             'input_ids': input_ids,
             'labels': labels,
-            'attention_mask': attention_mask
+            'attention_mask': attention_mask,
+            'weights': 1.0 if index < self.num_segments else self.qa_loss_weight
         }
     
     def __getitem__(self, index):
-        return self.preprocessing(self.data[index])
+        return self.preprocessing(self.data[index], index)
