@@ -64,7 +64,7 @@ if __name__ == '__main__':
                 pred = sample['llm_output'][i]
                 gpt4_score = get_gpt4_score(question, reference, pred)
                 gpt4_scores.append(gpt4_score)
-        else:
+        elif 'qa_pairs' in sample:
             for qa_pair in sample['qa_pairs']:
                 question = qa_pair["Q"]
                 reference = qa_pair["A"]
