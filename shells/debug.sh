@@ -11,7 +11,8 @@
 
 wandb disabled
 python scripts/prediction_loogle.py \
-    --input_file datasets/loogle/longdep_qa.jsonl \
+    --remove_unused_columns False \
+    --input_file datasets/loogle/shortdep_qa.jsonl \
     --model_name_or_path models/Meta-Llama-3-8B-Instruct \
     --output_dir models/temp \
     --overwrite_output_dir True \
@@ -23,8 +24,7 @@ python scripts/prediction_loogle.py \
     --adam_epsilon 1e-8 \
     --max_grad_norm 1.0 \
     --num_train_epochs 2 \
-    --enable_sequential_training True \
-    --sequential_training_epochs 3 \
+    --involve_qa_epochs 3 \
     --log_level info \
     --logging_strategy steps \
     --logging_steps 1 \
@@ -37,10 +37,13 @@ python scripts/prediction_loogle.py \
     --block_size 1024 \
     --len_segment 2 \
     --len_offset 1 \
-    --model_max_length 8000 \
+    --model_max_length 7500 \
     --output_file outputs/debug.json \
-    --prepend_input True \
+    --enable_ICL True \
+    --ttt_enable_ICL True \
     --recite_first False \
-    --dataset_name long_qa \
+    --ttt_recite_first True \
     --debug_size 1 \
-    --num_generate_qa 0 \
+    --generator_name_or_path models/Meta-Llama-3-8B-Instruct \
+    --num_generate_qa 5 \
+    --enable_diverse_qa True \

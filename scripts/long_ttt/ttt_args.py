@@ -59,6 +59,8 @@ class DataTrainingArguments:
     ttt_recite_first: bool = field(default=False)
     ttt_enable_ICL: bool = field(default=True)
     qa_loss_weight: float = field(default=1.0)
+    enable_diverse_qa: bool = field(default=False)
+    # involve_qa_epochs, shared with CustomTrainingArguments
 
 
 @dataclass
