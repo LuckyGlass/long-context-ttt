@@ -58,7 +58,7 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
 
 
 class ContextDataset(Dataset):
-    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, **kwargs):
+    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, involve_qa_epochs: int=0, enable_diverse_qa: bool=False, **kwargs):
         """
         Args:
             context (str): the context to train on.
@@ -90,6 +90,11 @@ class ContextDataset(Dataset):
         self.data = [input_ids[s:s+len_segment] for s in range(0, len(input_ids), len_offset)]
         self.num_segments = len(self.data)  # record the number of context datapoints
         # Generate QA
+        self.num_generate_qa = num_generate_qa
+        self.enable_diverse_qa = enable_diverse_qa
+        self.counter_qa = 0
+        if enable_diverse_qa:
+            num_generate_qa *= involve_qa_epochs
         generator = None
         if generator_name_or_path is not None and num_generate_qa > 0:
             generator = AutoModelForCausalLM.from_pretrained(
@@ -193,7 +198,7 @@ class ContextDataset(Dataset):
     def __len__(self):
         # Modify __len__ to decide whether to involve synthetic QA pairs
         if self.involve_qa:
-            return len(self.data)
+            return self.num_segments + self.num_generate_qa
         else:
             return self.num_segments  # the first several datapoints are the context
 
@@ -223,4 +228,7 @@ class ContextDataset(Dataset):
         }
     
     def __getitem__(self, index):
+        if index >= self.num_segments:
+            index = self.num_segments + self.counter_qa
+            self.counter_qa += 1
         return self.preprocessing(self.data[index], index)
