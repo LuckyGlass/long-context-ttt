@@ -65,6 +65,7 @@ def get_prediction(training_args: TrainingArguments, args: dict, output_file: st
                 model, tokenizer = LongbenchTrain(sample, training_args, **args)
                 for param in model.parameters():
                     param.grad = None
+                model.eval()
                 torch.cuda.empty_cache()
                 printGPU("Eval")
                 prompts = []
