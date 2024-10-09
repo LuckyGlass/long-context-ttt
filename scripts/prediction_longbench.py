@@ -32,7 +32,7 @@ def LongbenchTrain(datapoint: dict, training_args: TrainingArguments, **kwargs):
     return train(dataset, tokenizer, training_args, **kwargs)
 
 
-def get_prediction(training_args: TrainingArguments, args: dict, output_file: str, enable_ICL: bool=True, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None, input_file: str="", **kwargs):
+def get_prediction(training_args: TrainingArguments, args: dict, output_file: str, enable_ICL: bool=True, recite_first: bool=False, input_file: str="", overwrite: bool=True, **kwargs):
     if len(kwargs) > 0:
         logging.warning(f"Unused test arguments: {kwargs}")
     model_max_length = args['model_max_length']
@@ -44,24 +44,25 @@ def get_prediction(training_args: TrainingArguments, args: dict, output_file: st
     for root, dirs, files in os.walk(input_file):
         for dataset in files:
             print('---------------------------------------------------------------------------'+input_file+dataset)
-            with open(input_file+dataset, 'r') as f:
+            with open(os.path.join(input_file, dataset), 'r') as f:
                 samples = [json.loads(line) for line in f]
                 if debug_size is not None:
                     samples = samples[:debug_size]
+            num_resumed = 0
+            if os.path.exists(os.path.join(output_file, dataset)):
+                with open(os.path.join(output_file, dataset), 'r') as f:
+                    num_resumed = len(f.readlines())
             prompt_ins = dataset2prompt[dataset.replace('.jsonl','')]
             max_gen = dataset2maxlen[dataset.replace('.jsonl','')]
 
             #prediction
-            results = []
             c = 0
-            for sample in samples:
+            for sample in samples[num_resumed:]:
                 model, tokenizer = LongbenchTrain(sample, training_args, **args)
                 for param in model.parameters():
                     param.grad = None
                 torch.cuda.empty_cache()
                 printGPU("Eval")
-
-                torch.cuda.empty_cache()
                 prompts = []
                 if enable_ICL:
                     prompts += [f"Here is the [context] for the task: {sample['context']}" ]
@@ -91,7 +92,6 @@ def get_prediction(training_args: TrainingArguments, args: dict, output_file: st
                         temperature=1.0,
                         num_beams=1,
                         repetition_penalty=1.1,
-                        output_attentions=compute_attention,
                         return_dict_in_generate=True,
                     )
                     output = outputs.sequences
@@ -100,14 +100,11 @@ def get_prediction(training_args: TrainingArguments, args: dict, output_file: st
                     pred = tokenizer.decode(output_model, skip_special_tokens=True)
                     sample['pred'] = pred
                 del output, attentions, input_ids, output_model
-                results.append(sample)
                 del model, tokenizer
                 torch.cuda.empty_cache()
                 printGPU("End of task")
-                if not os.path.exists(output_file):
-                    os.makedirs(output_file)
-                with open(output_file+dataset, "a+", encoding="utf-8") as f:
-                    json.dump({"pred": pred, "answers": sample["answers"], "all_classes": sample["all_classes"], "length": sample["length"], "_id": sample["_id"]},f, ensure_ascii=False)
+                with open(os.path.join(output_file, dataset), "a+", encoding="utf-8") as f:
+                    json.dump({"pred": pred, "answers": sample["answers"], "all_classes": sample["all_classes"], "length": sample["length"], "_id": sample["_id"]}, f, ensure_ascii=False)
                     f.write('\n')
                 c += 1
                 print('====================Finish', c)
