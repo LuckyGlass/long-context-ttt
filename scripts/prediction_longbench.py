@@ -19,6 +19,7 @@ from typing import Optional
 import os
 from long_ttt.utils import printGPU
 from long_ttt.model import load_tokenizer
+import logging
 
 @dataclass
 class TestArguments(GlobalTestArguments):
@@ -31,7 +32,9 @@ def LongbenchTrain(datapoint: dict, training_args: TrainingArguments, **kwargs):
     return train(dataset, tokenizer, training_args, **kwargs)
 
 
-def get_prediction(training_args: TrainingArguments, args: dict, output_file: str, enable_ICL: bool=True, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None, input_file: str=""):
+def get_prediction(training_args: TrainingArguments, args: dict, output_file: str, enable_ICL: bool=True, recite_first: bool=False, compute_attention: bool=False, attention_output_dir: Optional[str]=None, input_file: str="", **kwargs):
+    if len(kwargs) > 0:
+        logging.warning(f"Unused test arguments: {kwargs}")
     model_max_length = args['model_max_length']
     dataset2prompt = json.load(open("/scratch/nlp/lijiaqi/long-context-ttt/scripts/longbench/dataset2prompt.json", "r"))
     dataset2maxlen = json.load(open("/scratch/nlp/lijiaqi/long-context-ttt/scripts/longbench/dataset2maxlen.json", "r"))
@@ -114,9 +117,6 @@ def main():
         (TrainingArguments, TestArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)),
         no_dict=(TrainingArguments,)
     )
-    del test_args['eval_batch_size']
-    test_args['recite_first'] = args['recite_first']
-    test_args['enable_ICL'] = args['enable_ICL']
     if test_args['attention_output_dir'] is not None:
         os.makedirs(test_args['attention_output_dir'], exist_ok=True)
     
