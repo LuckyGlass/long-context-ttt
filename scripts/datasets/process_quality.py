@@ -93,5 +93,17 @@ def main():
         json.dump(export_data, f, indent=4, ensure_ascii=False)
 
 
+# fix some bugs about the evidences
+def post_process():
+    with open('datasets/QuALITY/dev.json', 'r') as f:
+        data = json.load(f)
+    for d in data:
+        for qa_pair in d['qa_pairs']:
+            evidence_text = qa_pair['S'][0]
+            qa_pair['S'] = [s[2:] for s in evidence_text.split('\n')]
+    with open('datasets/QuALITY/QuALITY_dev.json', 'w') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+
 if __name__ == '__main__':
     main()
