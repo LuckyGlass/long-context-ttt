@@ -87,8 +87,8 @@ class ContextDataset(Dataset):
         len_segment = len_segment * block_size
         len_offset = len_offset * block_size
         # Generate datapoints
-        self.data = [input_ids[s:s+len_segment] for s in range(0, len(input_ids), len_offset)]
-        self.num_segments = len(self.data)  # record the number of context datapoints
+        self.context_data = [input_ids[s:s+len_segment] for s in range(0, len(input_ids), len_offset)]
+        self.num_segments = len(self.context_data)  # record the number of context datapoints
         # Generate QA
         self.num_generate_qa = num_generate_qa
         self.enable_diverse_qa = enable_diverse_qa
@@ -103,6 +103,7 @@ class ContextDataset(Dataset):
                 device_map="auto",
             )
             generator.eval()
+        self.qa_data = []
         if num_generate_qa > 0:
             temp_qas = self.shortqa_gen(generator, context, num_generate_qa)
             torch.cuda.empty_cache()
@@ -130,7 +131,7 @@ class ContextDataset(Dataset):
                 if len(input_ids) > model_max_length:
                     input_ids = input_ids[:model_max_length//2] + input_ids[-model_max_length//2:]
                     input_length = len(input_ids) - output_length
-                self.data.append((input_ids, input_length))
+                self.qa_data.append((input_ids, input_length))
         # Add a tag - whether to involve synthetic QA pairs
         del generator
         self.involve_qa = False
@@ -228,7 +229,10 @@ class ContextDataset(Dataset):
         }
     
     def __getitem__(self, index):
-        if index >= self.num_segments:
-            index = self.num_segments + self.counter_qa
+        if index < self.num_segments:
+            return self.preprocessing(self.context_data[index], index)
+        elif index < self.num_generate_qa:
             self.counter_qa += 1
-        return self.preprocessing(self.data[index], index)
+            return self.preprocessing(self.qa_data[self.counter_qa - 1], index)
+        else:
+            raise ValueError(f'Index {index} too large.')
