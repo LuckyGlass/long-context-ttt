@@ -15,63 +15,68 @@ from transformers import (
 # Configurations
 data_path = 'datasets/QuALITY/QuALITY.v1.0.1.htmlstripped.train'
 np.random.seed(0)
-number_generated_qa = 2
-number_article = 100
+num_events = 5
+num_timeline_reorder = 2
+number_article = 30
+model_max_length = 8000
 
 
 @torch.no_grad()
-def shortqa_gen(generator, tokenizer, full_context: str, num_generate_qa: int=0):
-    generated = []
-    texts = sent_tokenize(full_context)
-    c = 0
-    assert len(texts) >= 25
-    while len(generated) < num_generate_qa:
-        st_pos = np.random.randint(0, len(texts) - 25)
-        context = ' '.join(texts[st_pos:st_pos+25])
-        messages = [
-            {
-                'role': "system",
-                'content': "You are a helpful assistant."
-            },
-            {
-                'role': "user", 
-                'content': f"You are given a piece of text as the context. You should generate ONLY one question and the corresponding answer according to the context. You should also select one or more original sentences in the context as the evidences. Please answer in the following format:\nQuestion: [question]\nAnswer: [answer]\nEvidence:\n- [evidence 1]\n- [evidence 2]\n...\nPlease DON'T output quotes when outputing evidences. The following is the piece of text: {context}"
-            }
+def timeline_reorder_gen(tokenizer, generator, full_context: str, num_events: int, model_max_length: 4096):
+    def distribute_numbers(k, ell):
+        split_points: list = np.random.choice(ell + 1, k - 1, replace=True).tolist()
+        split_points.sort()
+        split_points = [0] + split_points + [ell]
+        return [r - l for l, r in zip(split_points[:-1], split_points[1:])]
+    
+    length_segments = 5  # Config
+    sentences = sent_tokenize(full_context)
+    length_gaps = distribute_numbers(num_events + 1, len(sentences) - num_events * length_segments)
+    st_point = 0
+    summaries = []
+    for i in tqdm.tqdm(range(num_events), desc="Events"):
+        st_point += length_gaps[i]
+        context = ' '.join(sentences[st_point:st_point + length_segments])
+        st_point += length_segments
+        prompts = [
+            "Please summary the event described in the following piece of texts in one sentence.",
+            f"The piece of texts is: {context}",
+            "Please summary the event described in the piece of texts in one sentence. Please do not output anything else."
         ]
-        input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt")
-        mask_attention = torch.ones_like(input_ids)
+        messages = [
+            {'role': 'system', 'content': "You are a helpful assistant."},
+            {'role': 'user', 'content': '\n'.join(prompts)}
+        ]
+        input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt')
+        attention_masks = torch.ones_like(input_ids)
         terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
-        num_of_trials = 0
-        while True:
-            outputs = generator.generate(
-                input_ids,
-                max_new_tokens=1024,
-                attention_mask=mask_attention,
-                pad_token_id=tokenizer.eos_token_id,
-                eos_token_id=terminators,
-                do_sample=False,
-            )
-            response = tokenizer.decode(outputs[0][input_ids.shape[-1]:], skip_special_tokens=True)
-            question_position = response.find("Question:")
-            answer_position = response.find("Answer:")
-            evidence_position = response.find("Evidence:")
-            question = response[question_position + 9:answer_position].strip()
-            answer = response[answer_position + 7:evidence_position].strip()
-            evidences = response[evidence_position + 9:].strip().split('\n')
-            evidences = list(map(lambda s: s[s.find('-') + 2:].strip(), evidences))
-            c += 1
-            if question_position == -1 or answer_position == -1 or evidence_position == -1:
-                num_of_trials += 1
-                if num_of_trials > 5:
-                    break
-                continue
-            else:
-                question = response[question_position+9:answer_position].strip()
-                answer = response[answer_position+7:evidence_position].strip()
-                evidence = response[evidence_position+9:].strip()
-                generated.append({"Q":question, "A":answer, "S": [evidence]})
-                break
-    return generated
+        output_ids = generator.generate(
+            input_ids,
+            max_new_tokens=1024,
+            attention_mask=attention_masks,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=terminators,
+            do_sample=False,
+        )
+        response = tokenizer.decode(output_ids[0][input_ids.shape[-1]:], skip_special_tokens=True)
+        summaries.append(response)
+    ranks = list(range(num_events))
+    answers = list(range(num_events))
+    np.random.shuffle(ranks)
+    answers.sort(key=lambda i: ranks[i])
+    prompts = [
+        "Please sort the given events in the order of their appearance in the following long texts, from first to last.",
+        full_context,
+        "Please sort the given events in the order of their appearance in the long texts, from first to last. The given events are:",
+    ]
+    prompts += [f"[{i + 1}]: {summaries[j]}" for i, j in enumerate(ranks)]
+    prompts += ["For example, a valid answer is [2] < [3] < [1] < [4] < [5]."]
+    messages = [
+        {'role': 'system', 'content': "You are a helpful assistant."},
+        {'role': 'user', 'content': '\n'.join(prompts)},
+        {'role': 'assistant', 'content': ' < '.join([f"[{i + 1}]" for i in answers])}
+    ]
+    return {'summaries': [summaries[i] for i in ranks], 'answers': answers}
 
 
 def main():
@@ -82,13 +87,15 @@ def main():
     generator.eval()
     tokenizer = AutoTokenizer.from_pretrained('models/Meta-Llama-3-8B-Instruct')
     export_data = []
-    for item in tqdm.tqdm(sampled_data):
+    for item in tqdm.tqdm(sampled_data, desc="Article"):
         export_data.append({
             'set_unique_id': item['set_unique_id'],
             'title': item['title'],
             'input': item['article'],
-            'qa_pairs': shortqa_gen(generator, tokenizer, item['article'], number_generated_qa)
+            'qa_pairs': [timeline_reorder_gen(tokenizer, generator, item['article'], num_events, model_max_length) for _ in tqdm.tqdm(range(num_timeline_reorder), desc="Samples")]
         })
+        with open('datasets/QuALITY/dev.json', 'w') as f:
+            json.dump(export_data, f, indent=4, ensure_ascii=False)
     with open('datasets/QuALITY/dev.json', 'w') as f:
         json.dump(export_data, f, indent=4, ensure_ascii=False)
 
