@@ -45,5 +45,7 @@ python scripts/prediction_loogle.py \
     --ttt_recite_first True \
     --debug_size 1 \
     --generator_name_or_path models/Meta-Llama-3-8B-Instruct \
-    --num_generate_qa 5 \
-    --enable_diverse_qa True \
+    --num_generate_qa 0 \
+    --num_timeline_reorder 2 \
+    --num_timeline_reorder_events 4 \
+    --enable_diverse_qa False \

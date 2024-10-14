@@ -61,6 +61,8 @@ class DataTrainingArguments:
     qa_loss_weight: float = field(default=1.0)
     enable_diverse_qa: bool = field(default=False)
     # involve_qa_epochs, shared with CustomTrainingArguments
+    num_timeline_reorder: int = field(default=0)
+    num_timeline_reorder_events: int = field(default=5)
 
 
 @dataclass

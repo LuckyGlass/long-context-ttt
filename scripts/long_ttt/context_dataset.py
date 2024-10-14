@@ -8,7 +8,7 @@ from transformers import (
 )
 from typing import Optional
 import torch
-from random import randint
+from numpy.random import randint, choice, shuffle
 import tqdm
 from nltk.tokenize import sent_tokenize
 
@@ -58,7 +58,7 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
 
 
 class ContextDataset(Dataset):
-    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, involve_qa_epochs: int=0, enable_diverse_qa: bool=False, **kwargs):
+    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, involve_qa_epochs: int=0, enable_diverse_qa: bool=False, num_timeline_reorder: int=0, num_timeline_reorder_events: int=5, **kwargs):
         """
         Args:
             context (str): the context to train on.
@@ -93,10 +93,11 @@ class ContextDataset(Dataset):
         self.num_generate_qa = num_generate_qa
         self.enable_diverse_qa = enable_diverse_qa
         self.counter_qa = 0
+        self.counter_timline_reorder = 0
         if enable_diverse_qa:
             num_generate_qa *= involve_qa_epochs
         generator = None
-        if generator_name_or_path is not None and num_generate_qa > 0:
+        if generator_name_or_path is not None:
             generator = AutoModelForCausalLM.from_pretrained(
                 generator_name_or_path,
                 trust_remote_code=True,
@@ -132,6 +133,13 @@ class ContextDataset(Dataset):
                     input_ids = input_ids[:model_max_length//2] + input_ids[-model_max_length//2:]
                     input_length = len(input_ids) - output_length
                 self.qa_data.append((input_ids, input_length))
+        # Generate timeline reorder
+        self.reorder_data = []
+        self.num_timeline_reorder = num_timeline_reorder
+        if enable_diverse_qa:
+            num_timeline_reorder *= involve_qa_epochs
+        for _ in tqdm.tqdm(range(num_timeline_reorder), desc="Generate timeline reorder tasks"):
+            self.reorder_data.append(self.timeline_reorder_gen(generator, context, num_timeline_reorder_events, model_max_length))
         # Add a tag - whether to involve synthetic QA pairs
         del generator
         self.involve_qa = False
@@ -196,10 +204,73 @@ class ContextDataset(Dataset):
                     break
         return generated
     
+    @torch.no_grad()
+    def timeline_reorder_gen(self, generator, full_context: str, num_events: int, model_max_length: 4096):
+        def distribute_numbers(k, ell):
+            split_points: list = choice(ell + 1, k - 1, replace=True).tolist()
+            split_points.sort()
+            split_points = [0] + split_points + [ell]
+            return [r - l for l, r in zip(split_points[:-1], split_points[1:])]
+        
+        length_segments = 10  # Config
+        sentences = sent_tokenize(full_context)
+        length_gaps = distribute_numbers(num_events + 1, len(sentences) - num_events * length_segments)
+        st_point = 0
+        summaries = []
+        for i in range(num_events):
+            st_point += length_gaps[i]
+            context = ' '.join(sentences[st_point:st_point + length_segments])
+            st_point += length_segments
+            prompts = [
+                "Please summary the event described in the following piece of texts in 2 sentences.",
+                f"The piece of texts is: {context}",
+                "Please summary the event described in the piece of texts in 2 sentences. Please do not output anything else."
+            ]
+            messages = [
+                {'role': 'system', 'content': "You are a helpful assistant."},
+                {'role': 'user', 'content': '\n'.join(prompts)}
+            ]
+            input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt')
+            attention_masks = torch.ones_like(input_ids)
+            terminators = [self.tokenizer.eos_token_id, self.tokenizer.convert_tokens_to_ids("<|eot_id|>")]
+            output_ids = generator.generate(
+                input_ids,
+                max_new_tokens=1024,
+                attention_mask=attention_masks,
+                pad_token_id=self.tokenizer.eos_token_id,
+                eos_token_id=terminators,
+                do_sample=False,
+            )
+            response = self.tokenizer.decode(output_ids[0][input_ids.shape[-1]:], skip_special_tokens=True)
+            summaries.append(response)
+        ranks = list(range(num_events))
+        answers = list(range(num_events))
+        shuffle(ranks)
+        answers.sort(key=lambda i: ranks[i])
+        prompts = [
+            "Please sort the given events in the order of their appearance in the following long texts, from first to last.",
+            full_context,
+            "Please sort the given events in the order of their appearance in the long texts, from first to last. The given events are:",
+        ]
+        prompts += [f"[{i + 1}]: {summaries[j]}" for i, j in enumerate(ranks)]
+        prompts += ["For example, a valid answer is [2] < [3] < [1] < [4] < [5]."]
+        messages = [
+            {'role': 'system', 'content': "You are a helpful assistant."},
+            {'role': 'user', 'content': '\n'.join(prompts)},
+            {'role': 'assistant', 'content': ' < '.join([f"[{i + 1}]" for i in answers])}
+        ]
+        input_length = len(self.tokenizer.apply_chat_template(messages[:-1], add_generation_prompt=True))
+        input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=False)
+        output_length = len(input_ids) - input_length
+        if len(input_ids) > model_max_length:
+            input_ids = input_ids[:model_max_length//2] + input_ids[-model_max_length//2:]
+            input_length = len(input_ids) - output_length
+        return (input_ids, input_length)
+    
     def __len__(self):
         # Modify __len__ to decide whether to involve synthetic QA pairs
         if self.involve_qa:
-            return self.num_segments + self.num_generate_qa
+            return self.num_segments + self.num_generate_qa + self.num_timeline_reorder
         else:
             return self.num_segments  # the first several datapoints are the context
 
@@ -231,8 +302,15 @@ class ContextDataset(Dataset):
     def __getitem__(self, index):
         if index < self.num_segments:
             return self.preprocessing(self.context_data[index], index)
-        elif index < self.num_generate_qa:
+        elif index < self.num_generate_qa + self.num_segments:
+            if self.counter_qa == len(self.qa_data):
+                self.counter_qa = 0
             self.counter_qa += 1
             return self.preprocessing(self.qa_data[self.counter_qa - 1], index)
+        elif index < self.num_timeline_reorder + self.num_generate_qa + self.num_segments:
+            if self.counter_timline_reorder == len(self.reorder_data):
+                self.counter_timline_reorder = 0
+            self.counter_timline_reorder += 1
+            return self.preprocessing(self.reorder_data[self.counter_timline_reorder - 1], index)
         else:
             raise ValueError(f'Index {index} too large.')
