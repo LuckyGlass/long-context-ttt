@@ -49,6 +49,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
         torch.cuda.empty_cache()
         printGPU(f"Before training")
         tokenizer = AutoTokenizer.from_pretrained(args['model_name_or_path'])
+        tokenizer.pad_token = tokenizer.eos_token
         context_dataset = ContextDataset(sample['input'], tokenizer, sample['title'], **args)
         model = train(context_dataset, tokenizer, training_args, **args)[0]
         model.eval()
@@ -87,7 +88,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
                     return_dict_in_generate=True,
                 )
                 output_ids = outputs.sequences[0]
-                qa_pair['pred'] = tokenizer.decode(output_ids, skip_special_tokens=True)
+                qa_pair['pred'] = tokenizer.decode(output_ids[input_ids.shape[-1]:], skip_special_tokens=True)
         results.append(sample)
         del model, tokenizer
         with open(output_file, "w+") as f:

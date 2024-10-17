@@ -285,13 +285,13 @@ class ContextDataset(Dataset):
         input_ids = input_ids[:self.model_max_length]
         labels = labels[:self.model_max_length]
         if self.pad_to_max_length:
-            input_ids += [self.tokenizer.pad_token_id] * (self.model_max_length - len(input_ids))
+            input_ids += [self.tokenizer.eos_token_id] * (self.model_max_length - len(input_ids))
             labels += [self.ignore_index] * (self.model_max_length - len(labels))
         # Transfer to Tensor
         input_ids = torch.LongTensor(input_ids)
         labels = torch.LongTensor(labels)
         labels[:len_input] = self.ignore_index  # mask the unsupervised part
-        attention_mask = input_ids.ne(self.tokenizer.pad_token_id)
+        attention_mask = input_ids.ne(self.tokenizer.eos_token_id)
         return {
             'input_ids': input_ids,
             'labels': labels,
