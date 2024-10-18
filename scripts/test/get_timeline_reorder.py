@@ -31,6 +31,7 @@ def main():
         data = json.load(f)
     scores = []
     errors = []
+    scores_wo_error = []
     for sample in data:
         if 'qa_pairs' not in sample:
             continue
@@ -46,9 +47,11 @@ def main():
             else:
                 errors.append(0)
                 scores.append(score)
+                scores_wo_error.append(score)
             # print(answer, '->', pred, '=', score)
     print("Average score:", np.mean(scores))
     print("Error rate:", np.mean(errors))
+    print("Average score w/o error:", np.mean(scores_wo_error))
 
 
 if __name__ == '__main__':
