@@ -10,31 +10,35 @@ import tqdm
 from nltk.tokenize import sent_tokenize
 from transformers import (
     AutoModelForCausalLM,
-    AutoTokenizer
+    AutoTokenizer,
+    BitsAndBytesConfig
 )
 # Configurations
-data_path = 'datasets/QuALITY/QuALITY.v1.0.1.htmlstripped.train'
+model_name_or_path = 'models/Meta-Llama-3-8B-Instruct'
+data_path = 'datasets/QuALITY/QuALITY.v1.0.1.htmlstripped.dev'
+output_path = 'datasets/QuALITY/timeline-dev.json'
 np.random.seed(0)
-num_events = 5
-num_timeline_reorder = 2
-number_article = 30
+num_events = (3, 6)
+num_timeline_reorder = 10
 model_max_length = 8000
 
 
 @torch.no_grad()
-def timeline_reorder_gen(tokenizer, generator, full_context: str, num_events: int, model_max_length: 4096):
+def timeline_reorder_gen(tokenizer, generator, full_context: str, num_events: int|tuple[int, int], model_max_length: 4096):
     def distribute_numbers(k, ell):
         split_points: list = np.random.choice(ell + 1, k - 1, replace=True).tolist()
         split_points.sort()
         split_points = [0] + split_points + [ell]
         return [r - l for l, r in zip(split_points[:-1], split_points[1:])]
     
-    length_segments = 5  # Config
+    length_segments = 10  # Config
     sentences = sent_tokenize(full_context)
+    if isinstance(num_events, tuple):
+        num_events = np.random.randint(num_events[0], num_events[1] + 1)
     length_gaps = distribute_numbers(num_events + 1, len(sentences) - num_events * length_segments)
     st_point = 0
     summaries = []
-    for i in tqdm.tqdm(range(num_events), desc="Events"):
+    for i in range(num_events):
         st_point += length_gaps[i]
         context = ' '.join(sentences[st_point:st_point + length_segments])
         st_point += length_segments
@@ -64,52 +68,41 @@ def timeline_reorder_gen(tokenizer, generator, full_context: str, num_events: in
     answers = list(range(num_events))
     np.random.shuffle(ranks)
     answers.sort(key=lambda i: ranks[i])
-    prompts = [
-        "Please sort the given events in the order of their appearance in the following long texts, from first to last.",
-        full_context,
-        "Please sort the given events in the order of their appearance in the long texts, from first to last. The given events are:",
-    ]
-    prompts += [f"[{i + 1}]: {summaries[j]}" for i, j in enumerate(ranks)]
-    prompts += ["For example, a valid answer is [2] < [3] < [1] < [4] < [5]."]
-    messages = [
-        {'role': 'system', 'content': "You are a helpful assistant."},
-        {'role': 'user', 'content': '\n'.join(prompts)},
-        {'role': 'assistant', 'content': ' < '.join([f"[{i + 1}]" for i in answers])}
-    ]
-    return {'summaries': [summaries[i] for i in ranks], 'answers': answers}
+    return {
+        'summaries': [summaries[i] for i in ranks],
+        'answers': answers
+    }
 
 
 def main():
     with open(data_path, 'r') as f:
         data = list(map(json.loads, f.readlines()))
-    sampled_data = np.random.choice(data, size=number_article, replace=False)
-    generator = AutoModelForCausalLM.from_pretrained('models/Meta-Llama-3-8B-Instruct')
+    generator = AutoModelForCausalLM.from_pretrained(
+        model_name_or_path,
+        device_map='auto',
+        torch_dtype=torch.bfloat16,
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type='nf4'
+        ),
+    )
     generator.eval()
+    generator = torch.compile(generator)
     tokenizer = AutoTokenizer.from_pretrained('models/Meta-Llama-3-8B-Instruct')
     export_data = []
-    for item in tqdm.tqdm(sampled_data, desc="Article"):
+    for item in tqdm.tqdm(data, desc="Article"):
         export_data.append({
             'set_unique_id': item['set_unique_id'],
             'title': item['title'],
             'input': item['article'],
             'qa_pairs': [timeline_reorder_gen(tokenizer, generator, item['article'], num_events, model_max_length) for _ in tqdm.tqdm(range(num_timeline_reorder), desc="Samples")]
         })
-        with open('datasets/QuALITY/dev.json', 'w') as f:
+        with open(output_path, 'w') as f:
             json.dump(export_data, f, indent=4, ensure_ascii=False)
-    with open('datasets/QuALITY/dev.json', 'w') as f:
+    with open(output_path, 'w') as f:
         json.dump(export_data, f, indent=4, ensure_ascii=False)
-
-
-# fix some bugs about the evidences
-def post_process():
-    with open('datasets/QuALITY/dev.json', 'r') as f:
-        data = json.load(f)
-    for d in data:
-        for qa_pair in d['qa_pairs']:
-            evidence_text = qa_pair['S'][0]
-            qa_pair['S'] = [s[2:] for s in evidence_text.split('\n')]
-    with open('datasets/QuALITY/QuALITY_dev.json', 'w') as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
 
 
 if __name__ == '__main__':
