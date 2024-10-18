@@ -62,7 +62,7 @@ class DataTrainingArguments:
     enable_diverse_qa: bool = field(default=False)
     # involve_qa_epochs, shared with CustomTrainingArguments
     num_timeline_reorder: int = field(default=0)
-    num_timeline_reorder_events: List[int] = field(default_factory=[5])
+    num_timeline_reorder_events: List[int] = field(default_factory=lambda: [5])
     
     def __post_init__(self):
         if len(self.num_timeline_reorder_events) == 1:
