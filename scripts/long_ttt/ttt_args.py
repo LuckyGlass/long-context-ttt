@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, Any
+from typing import Optional, Any, List
 from transformers import MODEL_FOR_CAUSAL_LM_MAPPING, HfArgumentParser
 import logging
 
@@ -62,7 +62,15 @@ class DataTrainingArguments:
     enable_diverse_qa: bool = field(default=False)
     # involve_qa_epochs, shared with CustomTrainingArguments
     num_timeline_reorder: int = field(default=0)
-    num_timeline_reorder_events: int = field(default=5)
+    num_timeline_reorder_events: List[int] = field(default_factory=[5])
+    
+    def __post_init__(self):
+        if len(self.num_timeline_reorder_events) == 1:
+            self.num_timeline_reorder_events = self.num_timeline_reorder_events[0]
+        elif len(self.num_timeline_reorder_events) == 2:
+            self.num_timeline_reorder_events = tuple(self.num_timeline_reorder)
+        else:
+            raise ValueError("--num_timeline_reorder_events accepts an integer or a pair of integers.")
 
 
 @dataclass

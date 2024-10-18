@@ -7,10 +7,8 @@ from transformers import (
     AutoModelForCausalLM
 )
 from typing import Optional
-import torch
 from numpy.random import randint, choice, shuffle
 import tqdm
-from nltk.tokenize import sent_tokenize
 
 def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list[str]=[], title: Optional[str]=None, context: Optional[str]=None, prepend_title: bool=False, sent_token: Optional[str]=None, recite_first: bool=False, enable_ICL: bool=False, return_answer: bool=False):
     """Apply the QA template, used for training.
@@ -58,7 +56,7 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
 
 
 class ContextDataset(Dataset):
-    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, involve_qa_epochs: int=0, enable_diverse_qa: bool=False, num_timeline_reorder: int=0, num_timeline_reorder_events: int=5, **kwargs):
+    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, involve_qa_epochs: int=0, enable_diverse_qa: bool=False, num_timeline_reorder: int=0, num_timeline_reorder_events: int|tuple[int, int]=5, **kwargs):
         """
         Args:
             context (str): the context to train on.
@@ -205,7 +203,7 @@ class ContextDataset(Dataset):
         return generated
     
     @torch.no_grad()
-    def timeline_reorder_gen(self, generator, full_context: str, num_events: int, model_max_length: 4096):
+    def timeline_reorder_gen(self, generator, full_context: str, num_events: int|tuple[int, int], model_max_length: 4096):
         def distribute_numbers(k, ell):
             split_points: list = choice(ell + 1, k - 1, replace=True).tolist()
             split_points.sort()
@@ -214,6 +212,8 @@ class ContextDataset(Dataset):
         
         length_segments = 10  # Config
         sentences = sent_tokenize(full_context)
+        if isinstance(num_events, tuple):
+            num_events = randint(num_events[0], num_events[1] + 1)
         length_gaps = distribute_numbers(num_events + 1, len(sentences) - num_events * length_segments)
         st_point = 0
         summaries = []
