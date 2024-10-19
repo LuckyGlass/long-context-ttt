@@ -68,7 +68,7 @@ class DataTrainingArguments:
         if len(self.num_timeline_reorder_events) == 1:
             self.num_timeline_reorder_events = self.num_timeline_reorder_events[0]
         elif len(self.num_timeline_reorder_events) == 2:
-            self.num_timeline_reorder_events = tuple(self.num_timeline_reorder)
+            self.num_timeline_reorder_events = tuple(self.num_timeline_reorder_events)
         else:
             raise ValueError("--num_timeline_reorder_events accepts an integer or a pair of integers.")
 
