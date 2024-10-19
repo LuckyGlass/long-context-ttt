@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import Dataset
 import transformers
 from transformers import (
-    PreTrainedModel,
+    BitsAndBytesConfig,
     AutoModelForCausalLM
 )
 from typing import Optional
@@ -98,8 +98,14 @@ class ContextDataset(Dataset):
         if generator_name_or_path is not None:
             generator = AutoModelForCausalLM.from_pretrained(
                 generator_name_or_path,
-                trust_remote_code=True,
-                device_map="auto",
+                device_map='auto',
+                torch_dtype=torch.bfloat16,
+                quantization_config=BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type='nf4'
+                ),
             )
             generator.eval()
         self.qa_data = []
