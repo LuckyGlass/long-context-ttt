@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J long
+#SBATCH -J longgen
 #SBATCH -N 1
 #SBATCH -p IAI_SLURM_HGX
 #SBATCH --gres=gpu:4
