@@ -10,6 +10,10 @@ from typing import Optional
 from numpy.random import randint, choice, shuffle
 import tqdm
 
+
+PREPEND_PROMPT = "Please answer the question based on the following text."
+
+
 def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list[str]=[], title: Optional[str]=None, context: Optional[str]=None, prepend_title: bool=False, sent_token: Optional[str]=None, recite_first: bool=False, enable_ICL: bool=False, return_answer: bool=False):
     """Apply the QA template, used for training.
     Args:
@@ -56,7 +60,7 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
 
 
 class ContextDataset(Dataset):
-    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, involve_qa_epochs: int=0, enable_diverse_qa: bool=False, num_timeline_reorder: int=0, num_timeline_reorder_events: int|tuple[int, int]=5, **kwargs):
+    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, involve_qa_epochs: int=0, enable_diverse_qa: bool=False, num_timeline_reorder: int=0, num_timeline_reorder_events: int|tuple[int, int]=5, append_question: bool=False, **kwargs):
         """
         Args:
             context (str): the context to train on.
@@ -80,12 +84,18 @@ class ContextDataset(Dataset):
             texts = self.sent_token.join(sentences)
         if prepend_title and title is not None:
             texts = f"Title: {title}.\nContent: {texts}"
-        texts = self.tokenizer.bos_token + texts + self.tokenizer.eos_token  # Manually add special tokens
         input_ids = self.tokenizer(texts, add_special_tokens=False)['input_ids']
         len_segment = len_segment * block_size
         len_offset = len_offset * block_size
         # Generate datapoints
-        self.context_data = [input_ids[s:s+len_segment] for s in range(0, len(input_ids), len_offset)]
+        if append_question:
+            assert 'question' in kwargs, "append_question=True but no question provided."
+            question = kwargs.pop('question')
+            prepend_ids = self.tokenizer(PREPEND_PROMPT + '\n', add_special_tokens=False)['input_ids']
+            question_ids = self.tokenizer('\n' + question, add_special_tokens=False)['input_ids']
+            self.context_data = [prepend_ids + input_ids[s:s+len_segment] + question_ids for s in range(0, len(input_ids), len_offset)]
+        else:
+            self.context_data = [input_ids[s:s+len_segment] for s in range(0, len(input_ids), len_offset)]
         self.num_segments = len(self.context_data)  # record the number of context datapoints
         # Generate QA
         self.num_generate_qa = num_generate_qa

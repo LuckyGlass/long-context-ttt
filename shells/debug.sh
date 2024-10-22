@@ -10,9 +10,9 @@
 #SBATCH -c 1
 
 wandb disabled
-python scripts/prediction_loogle.py \
+python scripts/prediction_quality.py \
     --remove_unused_columns False \
-    --input_file datasets/loogle/shortdep_qa.jsonl \
+    --input_file datasets/QuALITY/timeline-dev-summary.json \
     --model_name_or_path models/Meta-Llama-3-8B-Instruct \
     --output_dir models/temp \
     --overwrite_output_dir True \
@@ -23,8 +23,8 @@ python scripts/prediction_loogle.py \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-8 \
     --max_grad_norm 1.0 \
-    --num_train_epochs 2 \
-    --involve_qa_epochs 3 \
+    --num_train_epochs 5 \
+    --involve_qa_epochs 0 \
     --log_level info \
     --logging_strategy steps \
     --logging_steps 1 \
@@ -46,6 +46,6 @@ python scripts/prediction_loogle.py \
     --debug_size 1 \
     --generator_name_or_path models/Meta-Llama-3-8B-Instruct \
     --num_generate_qa 0 \
-    --num_timeline_reorder 2 \
-    --num_timeline_reorder_events 4 \
+    --num_timeline_reorder 0 \
     --enable_diverse_qa False \
+    --append_question True
