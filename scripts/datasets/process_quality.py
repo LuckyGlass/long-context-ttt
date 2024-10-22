@@ -15,8 +15,8 @@ from transformers import (
 )
 # Configurations
 model_name_or_path = 'models/Meta-Llama-3-8B-Instruct'
-data_path = 'datasets/QuALITY/QuALITY.v1.0.1.htmlstripped.train'
-output_path = 'datasets/QuALITY/timeline-train-summary.json'
+data_path = 'datasets/QuALITY/QuALITY.v1.0.1.htmlstripped.test'
+output_path = 'datasets/QuALITY/timeline-test-summary.json'
 np.random.seed(0)
 num_events = (3, 6)
 num_timeline_reorder = 10
