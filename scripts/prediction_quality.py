@@ -54,7 +54,6 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
     for sample_id, sample in enumerate(tqdm.tqdm(samples, desc="Prediction")):
         if sample_id < len(results) - 1:
             continue
-        torch.cuda.empty_cache()
         printGPU(f"Before training")
         tokenizer = AutoTokenizer.from_pretrained(args['model_name_or_path'])
         tokenizer.pad_token = tokenizer.eos_token
@@ -62,6 +61,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
             model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, **args)
             torch.cuda.empty_cache()
         printGPU(f"Eval with {len(sample['qa_pairs'])} samples")
+        sample['qa_pair'] = sample['qa_pair'][:1]
         for i, qa_pair in enumerate(tqdm.tqdm(sample['qa_pairs'], desc="QA")):
             summaries = qa_pair['summaries']
             prompts = [
@@ -102,7 +102,9 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
                 del model
                 torch.cuda.empty_cache()
         results.append(sample)
-        del model, tokenizer
+        if not args['append_question']:
+            del model, tokenizer
+            torch.cuda.empty_cache()
         with open(output_file, "w+") as f:
             json.dump(results, f, indent=4)
 
