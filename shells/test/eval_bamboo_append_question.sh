@@ -22,7 +22,7 @@ python scripts/prediction_bamboo.py \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-8 \
     --max_grad_norm 1.0 \
-    --num_train_epochs 0 \
+    --num_train_epochs 5 \
     --log_level info \
     --logging_strategy steps \
     --logging_steps 1 \
