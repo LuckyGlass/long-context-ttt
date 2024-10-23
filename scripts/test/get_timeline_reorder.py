@@ -1,3 +1,4 @@
+import os
 import re
 import json
 import numpy as np
@@ -28,27 +29,51 @@ def main():
     parser.add_argument('pred')
     args = parser.parse_args()
     with open(args.pred, 'r') as f:
-        data = json.load(f)
+        ext = os.path.splitext(args.pred)[1]
+        if ext == '.json':
+            data = json.load(f)
+        elif ext == '.jsonl':
+            data = list(map(json.loads, f.readlines()))
+        else:
+            raise ValueError(f"Unknown file extension {ext}")
     scores = []
     errors = []
     scores_wo_error = []
     for sample in data:
-        if 'qa_pairs' not in sample:
-            continue
-        for qa in sample['qa_pairs']:
+        if 'qa_pairs' in sample:
+            for qa in sample['qa_pairs']:
+                answer_pattern = r"\[[0-9]+\](?: < \[[0-9]+\])*"
+                answer = list(map(lambda x: x + 1, qa['answers']))
+                pred = re.findall(answer_pattern, qa['pred'])[0]
+                pred = list(map(int, re.findall(r"[0-9]+", pred)))
+                score, error = concordinary_index(pred, answer)
+                if error:
+                    errors.append(1)
+                    scores.append(0)
+                else:
+                    errors.append(0)
+                    scores.append(score)
+                    scores_wo_error.append(score)
+        elif 'pred' in sample and ('answers' in sample or 'answer' in sample):
             answer_pattern = r"\[[0-9]+\](?: < \[[0-9]+\])*"
-            answer = list(map(lambda x: x + 1, qa['answers']))
-            pred = re.findall(answer_pattern, qa['pred'])[0]
-            pred = list(map(int, re.findall(r"[0-9]+", pred)))
-            score, error = concordinary_index(pred, answer)
-            if error:
+            if 'answer' in sample:
+                answer = list(map(lambda x: x + 1, sample['answer']))
+            else:
+                answer = list(map(lambda x: x + 1, sample['answers']))
+            pred = re.findall(answer_pattern, sample['pred'])
+            if len(pred) == 0:
                 errors.append(1)
                 scores.append(0)
             else:
-                errors.append(0)
-                scores.append(score)
-                scores_wo_error.append(score)
-            # print(answer, '->', pred, '=', score)
+                pred = list(map(int, re.findall(r"[0-9]+", pred[0])))
+                score, error = concordinary_index(pred, answer)
+                if error:
+                    errors.append(1)
+                    scores.append(0)
+                else:
+                    errors.append(0)
+                    scores.append(score)
+                    scores_wo_error.append(score)
     print("Average score:", np.mean(scores))
     print("Error rate:", np.mean(errors))
     print("Average score w/o error:", np.mean(scores_wo_error))
