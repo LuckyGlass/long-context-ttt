@@ -4,7 +4,7 @@
 import json
 import tqdm
 import torch
-from transformers import TrainingArguments, HfArgumentParser, AutoTokenizer
+from transformers import TrainingArguments, PreTrainedTokenizer, AutoTokenizer
 from dataclasses import dataclass, field
 import logging
 from long_ttt.train import train
@@ -25,6 +25,14 @@ import os
 @dataclass
 class TestArguments(GlobalTestArguments):
     output_file: Optional[str] = field(default=None)
+
+
+def trainQuALITY(context: str, title: str, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, question: Optional[str]=None, **args):
+    context_dataset = ContextDataset(context, tokenizer, title, question=question, **args)
+    model = train(context_dataset, tokenizer, training_args, **args)[0]
+    model.eval()
+    model = torch.compile(model)
+    return model
 
 
 def prediction(training_args: TrainingArguments, args: dict, output_file: str, input_file: str="", overwrite: bool=True, config: Optional[dict]=None, **kwargs):
@@ -51,14 +59,11 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
         tokenizer = AutoTokenizer.from_pretrained(args['model_name_or_path'])
         tokenizer.pad_token = tokenizer.eos_token
         if not args['append_question']:
-            context_dataset = ContextDataset(sample['input'], tokenizer, sample['title'], **args)
-            model = train(context_dataset, tokenizer, training_args, **args)[0]
-            model.eval()
+            model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, **args)
             torch.cuda.empty_cache()
         printGPU(f"Eval with {len(sample['qa_pairs'])} samples")
         for i, qa_pair in enumerate(tqdm.tqdm(sample['qa_pairs'], desc="QA")):
             summaries = qa_pair['summaries']
-            answers = qa_pair['answers']
             prompts = [
                 "Please sort the given events in the order of their appearance in the following long texts, from first to last.",
                 sample['input'],
@@ -71,9 +76,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
                 {'role': 'user', 'content': '\n'.join(prompts)},
             ]
             if args['append_question']:
-                context_dataset = ContextDataset(sample['input'], tokenizer, sample['title'], question='\n'.join(prompts[2:]), **args)
-                model = train(context_dataset, tokenizer, training_args, **args)[0]
-                model.eval()
+                model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, question='\n'.join(prompts[2:]), **args)
                 torch.cuda.empty_cache()
             input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt')
             if input_ids.shape[-1] > model_max_length:
@@ -95,6 +98,9 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
                 )
             output_ids = outputs.sequences[0]
             qa_pair['pred'] = tokenizer.decode(output_ids[input_ids.shape[-1]:], skip_special_tokens=True)
+            if args['append_question']:
+                del model
+                torch.cuda.empty_cache()
         results.append(sample)
         del model, tokenizer
         with open(output_file, "w+") as f:
