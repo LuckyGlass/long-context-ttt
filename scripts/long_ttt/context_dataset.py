@@ -11,7 +11,8 @@ from numpy.random import randint, choice, shuffle
 import tqdm
 
 
-PREPEND_PROMPT = "Please answer the question based on the following text."
+PRE_PROMPT = "Given a long text, reorder the events according to the original order of the events in the long text."
+POST_PROMPT = "Events: {events}\n\nGive the reorder results."
 
 
 def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list[str]=[], title: Optional[str]=None, context: Optional[str]=None, prepend_title: bool=False, sent_token: Optional[str]=None, recite_first: bool=False, enable_ICL: bool=False, return_answer: bool=False):
@@ -89,10 +90,10 @@ class ContextDataset(Dataset):
         len_offset = len_offset * block_size
         # Generate datapoints
         if append_question:
-            assert 'question' in kwargs, "append_question=True but no question provided."
-            question = kwargs.pop('question')
-            prepend_ids = self.tokenizer(PREPEND_PROMPT + '\n', add_special_tokens=False)['input_ids']
-            question_ids = self.tokenizer('\n' + question, add_special_tokens=False)['input_ids']
+            assert 'events' in kwargs, "append_question=True but no events provided."
+            events = kwargs.pop('events')
+            prepend_ids = self.tokenizer(PRE_PROMPT, add_special_tokens=False)['input_ids']
+            question_ids = self.tokenizer(POST_PROMPT.format_map({'events': events}), add_special_tokens=False)['input_ids']
             self.context_data = [prepend_ids + input_ids[s:s+len_segment] + question_ids for s in range(0, len(input_ids), len_offset)]
         else:
             self.context_data = [input_ids[s:s+len_segment] for s in range(0, len(input_ids), len_offset)]
