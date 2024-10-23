@@ -61,7 +61,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
             model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, **args)
             torch.cuda.empty_cache()
         printGPU(f"Eval with {len(sample['qa_pairs'])} samples")
-        sample['qa_pair'] = sample['qa_pair'][:1]
+        sample['qa_pairs'] = sample['qa_pairs'][:1]
         for i, qa_pair in enumerate(tqdm.tqdm(sample['qa_pairs'], desc="QA")):
             summaries = qa_pair['summaries']
             prompts = [
@@ -70,13 +70,13 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
                 "Please sort the given events in the order of their appearance in the long texts, from first to last. The given events are:",
             ]
             prompts += [f"[{i + 1}]: {summaries[i]}" for i in range(len(summaries))]
-            prompts += ["For example, a valid answer is [2] < [3] < [1] < [4] < [5]."]
+            prompts += ["Please answer in the form of [index1] < [index2] < ... < [indexn]. Please do not output anything else."]
             messages = [
                 {'role': 'system', 'content': "You are a helpful assistant."},
                 {'role': 'user', 'content': '\n'.join(prompts)},
             ]
             if args['append_question']:
-                model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, question='\n'.join(prompts[2:]), **args)
+                model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, question='\n'.join(prompts[2:-1]), **args)
                 torch.cuda.empty_cache()
             input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt')
             if input_ids.shape[-1] > model_max_length:
