@@ -44,16 +44,20 @@ def main():
             for qa in sample['qa_pairs']:
                 answer_pattern = r"\[[0-9]+\](?: < \[[0-9]+\])*"
                 answer = list(map(lambda x: x + 1, qa['answers']))
-                pred = re.findall(answer_pattern, qa['pred'])[0]
-                pred = list(map(int, re.findall(r"[0-9]+", pred)))
-                score, error = concordinary_index(pred, answer)
-                if error:
+                pred = re.findall(answer_pattern, qa['pred'])
+                if len(pred) == 0:
                     errors.append(1)
                     scores.append(0)
                 else:
-                    errors.append(0)
-                    scores.append(score)
-                    scores_wo_error.append(score)
+                    pred = list(map(int, re.findall(r"[0-9]+", pred[0])))
+                    score, error = concordinary_index(pred, answer)
+                    if error:
+                        errors.append(1)
+                        scores.append(0)
+                    else:
+                        errors.append(0)
+                        scores.append(score)
+                        scores_wo_error.append(score)
         elif 'pred' in sample and ('answers' in sample or 'answer' in sample):
             answer_pattern = r"\[[0-9]+\](?: < \[[0-9]+\])*"
             if 'answer' in sample:
