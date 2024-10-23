@@ -2,8 +2,7 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
     PreTrainedTokenizer,
-    TrainingArguments,
-    Trainer,
+    AutoModelForCausalLM,
 )
 from .my_llama import MyLlamaForCausalLM
 from peft import (
@@ -14,7 +13,6 @@ from peft import (
 from typing import Optional
 from copy import deepcopy
 import torch
-from torch.utils.data import Dataset
 
 
 def load_tokenizer(model_name_or_path: str):
@@ -37,21 +35,24 @@ def load_base_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, loa
     Returns:
         model (PreTrainedModel): the base model.
     """
+    model_cls = AutoModelForCausalLM
     if load_in_8bit or load_in_4bit:
         quantization_config = BitsAndBytesConfig(
             load_in_8bit=load_in_8bit,
             load_in_4bit=load_in_4bit
         )
-        model_base = MyLlamaForCausalLM.from_pretrained(
+        model_base = model_cls.from_pretrained(
             model_name_or_path,
             trust_remote_code=True,
             device_map="auto",
+            torch_dtype = torch.bfloat16,
             quantization_config=quantization_config,
         )
     else:
-        model_base = MyLlamaForCausalLM.from_pretrained(
+        model_base = model_cls.from_pretrained(
             model_name_or_path,
             trust_remote_code=True,
+            torch_dtype = torch.bfloat16,
             device_map="auto",
         )
 
