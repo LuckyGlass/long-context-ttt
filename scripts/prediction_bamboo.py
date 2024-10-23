@@ -85,8 +85,8 @@ def prediction(dataset: list[dict], training_args: TrainingArguments, args: dict
         mask_attention = torch.ones_like(input_ids)
         terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
         output = model.generate(
-            input_ids=input_ids,
-            attention_mask=mask_attention,
+            input_ids=input_ids.to(model.device),
+            attention_mask=mask_attention.to(model.device),
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=terminators,
             max_new_tokens=32,
