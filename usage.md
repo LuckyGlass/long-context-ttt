@@ -11,13 +11,16 @@
 - `block_size`
 - `len_segment`
 - `len_offset`
-- `prepend_title`：是否在输入中提示文章名字，如果datapoint不提供title属性，则会被忽略。这个参数会影响synthetic QA生成以及测试时的输入。
-- `recite_first`：是否要求模型先输出evidence，再输出答案。这个参数会影响synthetic QA和测试时的prompt，以及synthetic QA的输出。
-- `enable_ICL`：是否启用ICL。这个参数会影响synthetic QA和测试时的输入。
-- `num_generate_qa`：生成synthetic QA的数量，设置为0时即不引入synthetic QA。如果设置为非零值，则要求指定 `generator_name_or_path`。
-- `generator_name_or_path`：用于生成synthetic QA的模型，需要是指令模型，可以和TTT的基座模型不同。 
-- `sent_token`（暂时弃置）：是否引入标识原文的特殊字符，需要基座模型见过这个特殊字符。这个参数会影响TTT时输入的context、ICL的context，以及synthetic QA中的evidence（如果`recite_first=True`）。
-- `recite_prompt_type`：TODO(?)
+- `num_generate_qa`：生成通用synthetic QA的数量，设置为0时即不引入通用synthetic QA。如果设置为非零值，则要求指定 `generator_name_or_path`。
+- `generator_name_or_path`：用于生成synthetic QA的模型，需要是指令模型，可以和TTT的基座模型不同。
+- `pad_to_max_length`：是否把TTT的所有输入数据pad到 `model_max_length`，通常不需要。
+- `ttt_recite_first`：TTT时是否要求模型先输出evidence，再输出答案。这个参数会影响synthetic QA的prompt和输出。
+- `ttt_enable_ICL`：TTT时是否启用ICL。这个参数会影响synthetic QA的输入。
+- `qa_loss_weight`：TTT时synthetic QA的损失权重，反映为单条synthetic QA的损失权重是单条长文本片段的损失权重的 `loss_qa_weight` 倍。取较大值可以强调synthetic QA的重要性。
+- `enable_diverse_qa`：是否使TTT的不同epoch中的synthetic QA不同。从直观上看，启用可以防止过拟合。
+- `num_timeline_reorder`：生成时间排序类synthetic QA的数量，当大于0时需要指定 `generator_name_or_path`。
+- `num_timeline_reorder_events`：如果生成时间排序类synthetic QA，则该参数指定每条QA中需要排序的事件数量。该参数可以是单个整数，表示所有QA的事件数量都是该值，也可以是两个整数表示一个区间，事件数量将在区间中均匀采样。
+- `append_question`：TTT时，是否在长文本片段的末尾添加测试时的问题描述。若启用，则对于测试时的不同问题，需要单独TTT，目前只支持时间排序类问题。
 
 ### `CustomTrainingArguments`
 TTT所用训练参数，与 `transformers.TrainingArguments` 独立。
@@ -37,6 +40,9 @@ TTT所用训练参数，与 `transformers.TrainingArguments` 独立。
 - `eval_batch_size`
 - `compute_attention`：是否计算attention（目前只支持LooGLE）。
 - `attention_output_dir`：`compute_attention=True` 时，指定输出attention图像的目录；不指定时则不输出图像。
+- `overwrite`：当检测到输出文件已经存在时，是否重写输出文件；若不重写，则会检测输出文件中已经回答的文章数量，从第一个未回答的文章开始继续测试。
+- `enable_ICL`：测试时是否启用ICL。
+- `recite_first`：测试时是否要求模型先输出evidence再输出答案。
 
 
 ## 实验结果文件  
