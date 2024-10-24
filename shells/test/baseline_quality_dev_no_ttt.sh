@@ -5,8 +5,8 @@
 #SBATCH --gres=gpu:4
 #SBATCH --qos=16gpu-hgx
 #SBATCH --time=72:00:00
-#SBATCH -o logs/%j-out.log
-#SBATCH -e logs/%j-err.log
+#SBATCH -o logs/%j-baseline-quality-dev-out.log
+#SBATCH -e logs/%j-baseline-quality-dev-err.log
 #SBATCH -c 1
 
 wandb disabled
@@ -33,7 +33,10 @@ python scripts/prediction_quality.py \
     --tf32 False \
     --gradient_checkpointing True \
     --full_ft True \
-    --model_max_length 7500 \
+    --block_size 256 \
+    --len_segment 8 \
+    --len_offset 3 \
+    --model_max_length 7900 \
     --output_file outputs/quality-dev-baseline-no-ttt.json \
     --enable_ICL True \
     --recite_first False \

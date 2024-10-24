@@ -86,16 +86,15 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
             attention_mask = torch.ones_like(input_ids)
             terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
             with torch.no_grad():
-                outputs = model.generate(
+                output_ids = model.generate(
                     input_ids=input_ids.to(model.device),
                     attention_mask=attention_mask,
                     pad_token_id=tokenizer.pad_token_id,
                     eos_token_id=terminators,
                     max_new_tokens=32,
                     temperature=0.7,
-                    use_cache=False,
+                    use_cache=False
                 )
-            output_ids = outputs.sequences[0]
             qa_pair['pred'] = tokenizer.decode(output_ids[input_ids.shape[-1]:], skip_special_tokens=True)
             if args['append_question']:
                 del model
