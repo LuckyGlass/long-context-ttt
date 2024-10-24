@@ -22,6 +22,9 @@ from typing import Optional
 import os
 
 
+PROMPT_FORMAT = "Given a long text, and {num_events} events which take place in the long text, each indicated by number identifier [] that represents the shuffled order, (e.g. [0], [2], etc.). Reorder the events according to the original order of the events in the long text. The events should be listed in descending order using identifiers, and the first event in original order should be list first, and the output format should be [] > [], e.g., [0] > [2]. Only response the reorder results, do not say any word or explain.\n\nLong text:\n{content}\nEvents: {events}\n\nGive the reorder results, only give the ordered identifiers of the {num_events} events {answer_format}: "
+
+
 @dataclass
 class TestArguments(GlobalTestArguments):
     output_file: Optional[str] = field(default=None)
@@ -64,19 +67,18 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
         sample['qa_pairs'] = sample['qa_pairs'][:1]
         for i, qa_pair in enumerate(tqdm.tqdm(sample['qa_pairs'], desc="QA")):
             summaries = qa_pair['summaries']
-            prompts = [
-                "Please sort the given events in the order of their appearance in the following long texts, from first to last.",
-                sample['input'],
-                "Please sort the given events in the order of their appearance in the long texts, from first to last. The given events are:",
-            ]
-            prompts += [f"[{i + 1}]: {summaries[i]}" for i in range(len(summaries))]
-            prompts += ["Please answer in the form of [index1] < [index2] < ... < [indexn]. Please do not output anything else."]
+            prompt = PROMPT_FORMAT.format_map({
+                'num_events': len(summaries),
+                'events': '\n'.join(f"[{i + 1}]: {summaries[i]}" for i in range(len(summaries))),
+                'content': sample['input'],
+                'answer_format': ' < '.join(['[]'] * len(summaries))
+            })
             messages = [
                 {'role': 'system', 'content': "You are a helpful assistant."},
-                {'role': 'user', 'content': '\n'.join(prompts)},
+                {'role': 'user', 'content': prompt},
             ]
             if args['append_question']:
-                model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, question='\n'.join(prompts[2:-1]), **args)
+                model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, events=summaries, **args)
                 torch.cuda.empty_cache()
             input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt')
             if input_ids.shape[-1] > model_max_length:
@@ -85,16 +87,13 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
             terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
             with torch.no_grad():
                 outputs = model.generate(
-                    input_ids,
-                    max_new_tokens=50,
+                    input_ids=input_ids.to(model.device),
                     attention_mask=attention_mask,
-                    pad_token_id=tokenizer.eos_token_id,
+                    pad_token_id=tokenizer.pad_token_id,
                     eos_token_id=terminators,
-                    do_sample=False,
-                    temperature=1.0,
-                    num_beams=1,
-                    repetition_penalty=1.1,
-                    return_dict_in_generate=True,
+                    max_new_tokens=32,
+                    temperature=0.7,
+                    use_cache=False,
                 )
             output_ids = outputs.sequences[0]
             qa_pair['pred'] = tokenizer.decode(output_ids[input_ids.shape[-1]:], skip_special_tokens=True)
