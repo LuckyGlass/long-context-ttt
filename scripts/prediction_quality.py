@@ -54,14 +54,15 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
         if debug_size is not None:
             samples = samples[:debug_size]
     
+    tokenizer = AutoTokenizer.from_pretrained(args['model_name_or_path'])
+    tokenizer.pad_token = tokenizer.eos_token
     for sample_id, sample in enumerate(tqdm.tqdm(samples, desc="Prediction")):
         if sample_id < len(results) - 1:
             continue
         printGPU(f"Before training")
-        tokenizer = AutoTokenizer.from_pretrained(args['model_name_or_path'])
-        tokenizer.pad_token = tokenizer.eos_token
         if not args['append_question']:
             model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, **args)
+            model.eval()
             torch.cuda.empty_cache()
         printGPU(f"Eval with {len(sample['qa_pairs'])} samples")
         sample['qa_pairs'] = sample['qa_pairs'][:1]
@@ -79,6 +80,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
             ]
             if args['append_question']:
                 model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, events=summaries, **args)
+                model.eval()
                 torch.cuda.empty_cache()
             input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt')
             if input_ids.shape[-1] > model_max_length:
@@ -88,20 +90,20 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
             with torch.no_grad():
                 output_ids = model.generate(
                     input_ids=input_ids.to(model.device),
-                    attention_mask=attention_mask,
+                    attention_mask=attention_mask.to(model.device),
                     pad_token_id=tokenizer.pad_token_id,
                     eos_token_id=terminators,
                     max_new_tokens=32,
                     temperature=0.7,
                     use_cache=False
-                )
+                )[0]
             qa_pair['pred'] = tokenizer.decode(output_ids[input_ids.shape[-1]:], skip_special_tokens=True)
             if args['append_question']:
                 del model
                 torch.cuda.empty_cache()
         results.append(sample)
         if not args['append_question']:
-            del model, tokenizer
+            del model
             torch.cuda.empty_cache()
         with open(output_file, "w+") as f:
             json.dump(results, f, indent=4)
@@ -114,6 +116,6 @@ def main():
         return_config=True
     )
     prediction(training_args, args, config=config, **test_args)
-    
+
 if __name__ == "__main__":
     main()
