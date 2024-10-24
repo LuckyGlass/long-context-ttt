@@ -10,10 +10,19 @@
 #SBATCH -c 1
 
 wandb disabled
-python scripts/prediction_quality.py \
+TOKENIZERS_PARALLELISM=0 python scripts/prediction_quality.py \
     --remove_unused_columns False \
-    --input_file datasets/QuALITY/timeline-dev-summary.json \
+    --report_to none \
+    --overwrite True \
     --model_name_or_path models/Meta-Llama-3-8B-Instruct \
+    --model_max_length 7900 \
+    --block_size 256 \
+    --len_segment 8 \
+    --len_offset 3 \
+    --full_ft True \
+    --input_file datasets/QuALITY/timeline-dev-summary.json \
+    --enable_ICL True \
+    --recite_first False \
     --output_dir models/temp \
     --overwrite_output_dir True \
     --per_device_train_batch_size 1 \
@@ -32,11 +41,4 @@ python scripts/prediction_quality.py \
     --bf16 True \
     --tf32 False \
     --gradient_checkpointing True \
-    --full_ft True \
-    --block_size 256 \
-    --len_segment 8 \
-    --len_offset 3 \
-    --model_max_length 7900 \
     --output_file outputs/quality-dev-baseline-no-ttt.json \
-    --enable_ICL True \
-    --recite_first False \
