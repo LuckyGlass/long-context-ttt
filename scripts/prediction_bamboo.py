@@ -30,30 +30,6 @@ def Bamboo_train(full_text: str, tokenizer: PreTrainedTokenizer, training_args: 
     return train(dataset, tokenizer, training_args, **kwargs)
 
 
-def generate(model, tokenizer, input_data, model_max_length):
-    messages = [
-        {'role': 'user', 'content': input_data},
-    ]
-    input_ids = torch.LongTensor(tokenizer.apply_chat_template(messages, add_generation_prompt=True))[None, :].to(model.device)
-    if len(input_ids[0]) > model_max_length:
-        input_ids = torch.cat((input_ids[:, :model_max_length//2], input_ids[:, -model_max_length//2:]), dim=1)
-    mask_attention = torch.ones(input_ids.shape, dtype=torch.long, device=model.device)
-    terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
-    output = model.generate(
-        input_ids=input_ids,
-        attention_mask=mask_attention,
-        pad_token_id=tokenizer.pad_token_id,
-        eos_token_id=terminators,
-        max_new_tokens=32,
-        temperature=0.7,
-        use_cache=False,
-    )
-    response = tokenizer.decode(
-        output[0][len(input_ids[0]) :], skip_special_tokens=True
-    )
-    return response
-
-
 def prediction(dataset: list[dict], training_args: TrainingArguments, args: dict, output_file: str, num_resumed: int=0, **kwargs):
     logging.warning(f"Unused arguments: {list(kwargs.keys())}")
     tokenizer = load_tokenizer(args['model_name_or_path'])
