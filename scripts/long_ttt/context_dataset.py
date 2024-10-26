@@ -90,11 +90,17 @@ class ContextDataset(Dataset):
         len_offset = len_offset * block_size
         # Generate datapoints
         if append_question:
-            assert 'events' in kwargs, "append_question=True but no events provided."
-            events = kwargs.pop('events')
-            prepend_ids = self.tokenizer(PRE_PROMPT, add_special_tokens=False)['input_ids']
-            question_ids = self.tokenizer(POST_PROMPT.format_map({'events': events}), add_special_tokens=False)['input_ids']
-            self.context_data = [prepend_ids + input_ids[s:s+len_segment] + question_ids for s in range(0, len(input_ids), len_offset)]
+            if 'events' in kwargs:
+                events = kwargs.pop('events')
+                prepend_ids = self.tokenizer(PRE_PROMPT, add_special_tokens=False)['input_ids']
+                question_ids = self.tokenizer(POST_PROMPT.format_map({'events': events}), add_special_tokens=False)['input_ids']
+                self.context_data = [prepend_ids + input_ids[s:s+len_segment] + question_ids for s in range(0, len(input_ids), len_offset)]
+            elif 'question' in kwargs:
+                question = kwargs.pop('question')
+                question_ids = self.tokenizer(question, add_special_tokens=False)['input_ids']
+                self.context_data = [input_ids[s:s+len_segment] + question_ids for s in range(0, len(input_ids), len_offset)]
+            else:
+                raise KeyError("append_question=True but no events or question provided.")
         else:
             self.context_data = [input_ids[s:s+len_segment] for s in range(0, len(input_ids), len_offset)]
         self.num_segments = len(self.context_data)  # record the number of context datapoints

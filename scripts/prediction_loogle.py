@@ -25,11 +25,13 @@ class TestArguments(GlobalTestArguments):
     output_file: Optional[str] = field(default=None)
 
 
-PROMPT_FORMAT = "Given a long text, and {num_events} events which take place in the long text, each indicated by number identifier [] that represents the shuffled order, (e.g. [0], [2], etc.). Reorder the events according to the original order of the events in the long text. The events should be listed in descending order using identifiers, and the first event in original order should be list first, and the output format should be [] > [], e.g., [0] > [2]. Only response the reorder results, do not say any word or explain.\n\nLong text:\n{content}\nEvents: {events}\n\nGive the reorder results, only give the ordered identifiers of the {num_events} events {answer_format}: "
+PROMPT_FORMAT = "Given a long text, and {num_events} events which take place in the long text. \n\nLong text:\n{content}\nThe output format should be [] > [], e.g., [0] > [2]. Only response the reorder results, do not say any word or explain. Question: {question}\n\nGive the reorder results, only give the ordered identifiers of the {num_events} events {answer_format}: "
 
 
 def LooGLEtrain(full_text: str, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, **kwargs):
     dataset = ContextDataset(full_text, tokenizer, **kwargs)
+    print('!' * 100, len(dataset))
+    print(dataset[0]['input_ids'].shape)
     return train(dataset, tokenizer, training_args, **kwargs)
 
 
@@ -53,21 +55,22 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
     for index, sample in enumerate(tqdm.tqdm(data, total=len(data), desc="Predicting")):
         if index < num_resumed:
             continue
-        summaries = sample["summaries"]
+        question = sample["question"]
         prompt = PROMPT_FORMAT.format_map({
-            'num_events': len(summaries),
-            'events': '\n'.join(f"[{i + 1}]: {summaries[i]}" for i in range(len(summaries))),
+            'num_events': len(sample['answers']),
+            'question': question,
             'content': sample['content'],
-            'answer_format': ' < '.join(['[]'] * len(summaries))
+            'answer_format': ' < '.join(['[]'] * len(sample['answers']))
         })
         messages = [
             {'role': 'system', 'content': "You are a helpful assistant."},
             {'role': 'user', 'content': prompt},
         ]
         if args['append_question']:
-            model = LooGLEtrain(sample['content'], tokenizer, training_args, events=summaries, **args)[0]
+            model = LooGLEtrain(sample['content'], tokenizer, training_args, question=question, **args)[0]
         else:
             model = LooGLEtrain(sample['content'], tokenizer, training_args, **args)[0]
+        model.eval()
         torch.cuda.empty_cache()
 
         input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True)
@@ -76,15 +79,16 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
         input_ids = torch.LongTensor(input_ids)[None, :]
         mask_attention = torch.ones_like(input_ids)
         terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
-        output = model.generate(
-            input_ids=input_ids.to(model.device),
-            attention_mask=mask_attention.to(model.device),
-            pad_token_id=tokenizer.pad_token_id,
-            eos_token_id=terminators,
-            max_new_tokens=32,
-            temperature=0.7,
-            use_cache=False,
-        )
+        with torch.no_grad():
+            output = model.generate(
+                input_ids=input_ids.to(model.device),
+                attention_mask=mask_attention.to(model.device),
+                pad_token_id=tokenizer.pad_token_id,
+                eos_token_id=terminators,
+                max_new_tokens=128,
+                temperature=0.7,
+                use_cache=False,
+            )
         response = tokenizer.decode(output[0][input_ids.shape[-1]:], skip_special_tokens=True)
         sample['pred'] = response
         results.append(sample)
