@@ -43,7 +43,9 @@ def main():
         if 'qa_pairs' in sample:
             for qa in sample['qa_pairs']:
                 answer_pattern = r"\[[0-9]+\](?: < \[[0-9]+\])*"
-                answer = list(map(lambda x: x + 1, qa['answers']))
+                answer = qa['answers']
+                if 0 in answer:
+                    answer = list(map(lambda x: x + 1, qa['answers']))
                 pred = re.findall(answer_pattern, qa['pred'])
                 if len(pred) == 0:
                     errors.append(1)
@@ -61,9 +63,11 @@ def main():
         elif 'pred' in sample and ('answers' in sample or 'answer' in sample):
             answer_pattern = r"\[[0-9]+\](?: < \[[0-9]+\])*"
             if 'answer' in sample:
-                answer = list(map(lambda x: x + 1, sample['answer']))
+                answer = sample['answer']
             else:
-                answer = list(map(lambda x: x + 1, sample['answers']))
+                answer = sample['answers']
+            if 0 in answer:
+                answer = list(map(lambda x: x + 1, answer))
             pred = re.findall(answer_pattern, sample['pred'])
             if len(pred) == 0:
                 errors.append(1)
