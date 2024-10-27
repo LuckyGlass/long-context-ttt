@@ -16,6 +16,7 @@ from long_ttt.ttt_args import (
     parse_args
 )
 from long_ttt.context_dataset import ContextDataset
+from long_ttt.utils import printGPU
 from typing import Optional
 import os
 
@@ -92,6 +93,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
         response = tokenizer.decode(output[0][input_ids.shape[-1]:], skip_special_tokens=True)
         sample['pred'] = response
         results.append(sample)
+        del model, output, input_ids, mask_attention
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=4, ensure_ascii=False)
 
