@@ -4,6 +4,7 @@
 
 - `model_name_or_path`
 - `model_max_length`：这个参数会决定输入到模型的token数（如果`pad_to_max_length=True`）。
+- `is_peft_model`：`model_name_or_path` 是否指向一个peft（lora）model。
 
 ### `DataTrainingArguments`
 通用数据参数，用于从单条长文本生成 `ContextDataset`以及生成测试模板。
@@ -43,6 +44,17 @@ TTT所用训练参数，与 `transformers.TrainingArguments` 独立。
 - `overwrite`：当检测到输出文件已经存在时，是否重写输出文件；若不重写，则会检测输出文件中已经回答的文章数量，从第一个未回答的文章开始继续测试。
 - `enable_ICL`：测试时是否启用ICL。
 - `recite_first`：测试时是否要求模型先输出evidence再输出答案。
+
+### `TrainingArguments`
+transformers库所需参数。
+
+- `output_dir`：在本代码中无意义。
+- `per_device_train_batch_size`
+- `learning_rate`
+- `weight_decay`
+- `adam_beta1`, `adam_beta2`, `adam_epsilon`
+- `max_grad_norm`
+- `num_train_epochs`：不引入syn. QA的训练epoch数
 
 
 ## 实验结果文件  
