@@ -9,6 +9,8 @@ from peft import (
     LoraConfig,
     TaskType,
     get_peft_model,
+    PeftModel,
+    PeftConfig
 )
 from typing import Optional
 from copy import deepcopy
@@ -65,7 +67,7 @@ def load_base_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, loa
     return model_base
 
 
-def load_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, use_lora: bool=False, lora_rank: Optional[int]=None, full_ft: bool=False, **kwargs):
+def load_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, use_lora: bool=False, lora_rank: Optional[int]=None, full_ft: bool=False, is_peft_model: bool=False, **kwargs):
     """Load the trainable model.
     Args:
         model_name_or_path (str):
@@ -81,6 +83,14 @@ def load_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, use_lora
     Returns:
         model (PreTrainedModel): the model to train.
     """
+    if is_peft_model:
+        assert use_lora, "--is_peft_model=True must be used with --use_lora=True."
+        peft_config = PeftConfig.from_pretrained(model_name_or_path)
+        model_base = load_base_model(peft_config.base_model_name_or_path, tokenizer, **kwargs)
+        model = PeftModel.from_pretrained(model_base, model_name_or_path, config=peft_config, is_trainable=True)
+        print(model)
+        return model
+    
     model_base = load_base_model(model_name_or_path, tokenizer, **kwargs)
     # Load the model
     if use_lora:

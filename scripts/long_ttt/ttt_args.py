@@ -10,6 +10,7 @@ MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 class ModelArguments:
     model_name_or_path: str
     model_max_length: Optional[int] = field(default=None)
+    is_peft_model: bool = field(default=False)
 
 
 @dataclass
