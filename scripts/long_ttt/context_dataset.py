@@ -196,9 +196,9 @@ class ContextDataset(Dataset):
             num_of_trials = 0
             while True:
                 outputs = generator.generate(
-                    input_ids,
+                    input_ids.to(generator.device),
                     max_new_tokens=1024,
-                    attention_mask=mask_attention,
+                    attention_mask=mask_attention.to(generator.device),
                     pad_token_id=self.tokenizer.eos_token_id,
                     eos_token_id=terminators,
                     do_sample=False,
@@ -257,9 +257,9 @@ class ContextDataset(Dataset):
             attention_masks = torch.ones_like(input_ids)
             terminators = [self.tokenizer.eos_token_id, self.tokenizer.convert_tokens_to_ids("<|eot_id|>")]
             output_ids = generator.generate(
-                input_ids,
+                input_ids.to(generator.device),
                 max_new_tokens=1024,
-                attention_mask=attention_masks,
+                attention_mask=attention_masks.to(generator.device),
                 pad_token_id=self.tokenizer.eos_token_id,
                 eos_token_id=terminators,
                 do_sample=False,
