@@ -61,7 +61,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
             continue
         printGPU(f"Before training")
         if not args['append_question']:
-            model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, **args)
+            model = trainQuALITY(sample['input'], 'no_title', tokenizer, training_args, **args)
             model.eval()
             torch.cuda.empty_cache()
         printGPU(f"Eval with {len(sample['qa_pairs'])} samples")
@@ -79,7 +79,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
                 {'role': 'user', 'content': prompt},
             ]
             if args['append_question']:
-                model = trainQuALITY(sample['input'], sample['title'], tokenizer, training_args, events=summaries, **args)
+                model = trainQuALITY(sample['input'], 'no_title', tokenizer, training_args, events=summaries, **args)
                 model.eval()
                 torch.cuda.empty_cache()
             input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt')
