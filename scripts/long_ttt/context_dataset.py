@@ -6,13 +6,14 @@ from transformers import (
     BitsAndBytesConfig,
     AutoModelForCausalLM
 )
-from typing import Optional
+from typing import Optional, Union
 from numpy.random import randint, choice, shuffle
 import tqdm
 
 
 PRE_PROMPT = "Given a long text, reorder the events according to the original order of the events in the long text."
 POST_PROMPT = "Events: {events}\n\nGive the reorder results."
+BAMBOO_PROMPT_FORMAT = "Given a long text, and {num_events} events which take place in the long text, each indicated by number identifier [] that represents the shuffled order, (e.g. [0], [2], etc.). Reorder the events according to the original order of the events in the long text. The events should be listed in descending order using identifiers, and the first event in original order should be list first, and the output format should be [] > [], e.g., [0] > [2]. Only response the reorder results, do not say any word or explain.\n\nLong text:\n{content}\nEvents: {events}\n\nGive the reorder results, only give the ordered identifiers of the {num_events} events {answer_format}: "
 
 
 def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list[str]=[], title: Optional[str]=None, context: Optional[str]=None, prepend_title: bool=False, sent_token: Optional[str]=None, recite_first: bool=False, enable_ICL: bool=False, return_answer: bool=False):
@@ -61,7 +62,7 @@ def apply_qa_template(question: str, answer: Optional[str]=None, evidences: list
 
 
 class ContextDataset(Dataset):
-    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, involve_qa_epochs: int=0, enable_diverse_qa: bool=False, num_timeline_reorder: int=0, num_timeline_reorder_events: int|tuple[int, int]=5, append_question: bool=False, **kwargs):
+    def __init__(self, context: str, tokenizer: transformers.PreTrainedTokenizer, title: Optional[str]=None, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, prepend_title: bool=False, sent_token: bool=False, num_generate_qa: int=0, generator_name_or_path: Optional[str]=None, qa_loss_weight: float=1.0, pad_to_max_length: bool=True, ttt_recite_first: bool=False, ttt_enable_ICL: bool=False, involve_qa_epochs: int=0, enable_diverse_qa: bool=False, num_timeline_reorder: int=0, num_timeline_reorder_events: int|tuple[int, int]=5, append_question: bool=False, is_sentence_based: bool=False, **kwargs):
         """
         Args:
             context (str): the context to train on.
@@ -160,7 +161,10 @@ class ContextDataset(Dataset):
         if enable_diverse_qa:
             num_timeline_reorder *= involve_qa_epochs
         for _ in tqdm.tqdm(range(num_timeline_reorder), desc="Generate timeline reorder tasks"):
-            self.reorder_data.append(self.timeline_reorder_gen(generator, context, num_timeline_reorder_events, model_max_length))
+            if is_sentence_based:
+                self.reorder_data.append(self.timeline_reorder_sent_gen(context, num_timeline_reorder_events, model_max_length))
+            else:
+                self.reorder_data.append(self.timeline_reorder_summary_gen(generator, context, num_timeline_reorder_events, model_max_length))
         # Add a tag - whether to involve synthetic QA pairs
         del generator
         self.involve_qa = False
@@ -226,7 +230,7 @@ class ContextDataset(Dataset):
         return generated
     
     @torch.no_grad()
-    def timeline_reorder_gen(self, generator, full_context: str, num_events: int|tuple[int, int], model_max_length: 4096):
+    def timeline_reorder_summary_gen(self, generator, full_context: str, num_events: int|tuple[int, int], model_max_length: int=4096):
         def distribute_numbers(k, ell):
             split_points: list = choice(ell + 1, k - 1, replace=True).tolist()
             split_points.sort()
@@ -270,16 +274,49 @@ class ContextDataset(Dataset):
         answers = list(range(num_events))
         shuffle(ranks)
         answers.sort(key=lambda i: ranks[i])
-        prompts = [
-            "Please sort the given events in the order of their appearance in the following long texts, from first to last.",
-            full_context,
-            "Please sort the given events in the order of their appearance in the long texts, from first to last. The given events are:",
-        ]
-        prompts += [f"[{i + 1}]: {summaries[j]}" for i, j in enumerate(ranks)]
-        prompts += ["For example, a valid answer is [2] < [3] < [1] < [4] < [5]."]
+        prompt = BAMBOO_PROMPT_FORMAT.format_map(dict(
+            num_events=num_events,
+            content=full_context,
+            events=summaries,
+            answer_format=' < '.join(['[]'] * num_events)
+        ))
         messages = [
             {'role': 'system', 'content': "You are a helpful assistant."},
-            {'role': 'user', 'content': '\n'.join(prompts)},
+            {'role': 'user', 'content': prompt},
+            {'role': 'assistant', 'content': ' < '.join([f"[{i + 1}]" for i in answers])}
+        ]
+        input_length = len(self.tokenizer.apply_chat_template(messages[:-1], add_generation_prompt=True))
+        input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=False)
+        output_length = len(input_ids) - input_length
+        if len(input_ids) > model_max_length:
+            input_ids = input_ids[:model_max_length//2] + input_ids[-model_max_length//2:]
+            input_length = len(input_ids) - output_length
+        return (input_ids, input_length)
+
+    def timeline_reorder_sent_gen(self, full_context: str, num_events: Union[int, tuple[int, int]], model_max_length: int=4096):
+        sentences = sent_tokenize(full_context)
+        if isinstance(num_events, tuple):
+            num_events = randint(num_events[0], num_events[1] + 1)
+        for _ in range(10):  # Max trying times
+            sentence_ids = choice(len(sentences), num_events, replace=False)
+            summaries = [sentences[i] for i in sentence_ids]
+            if all(len(s) >= 50 for s in summaries):
+                break
+        else:
+            raise ValueError("Fail to generate a sentence-based timeline reorder task.")
+        ranks = list(range(num_events))
+        answers = list(range(num_events))
+        shuffle(ranks)
+        answers.sort(key=lambda i: ranks[i])
+        prompt = BAMBOO_PROMPT_FORMAT.format_map(dict(
+            num_events=num_events,
+            content=full_context,
+            events=summaries,
+            answer_format=' < '.join(['[]'] * num_events)
+        ))
+        messages = [
+            {'role': 'system', 'content': "You are a helpful assistant."},
+            {'role': 'user', 'content': prompt},
             {'role': 'assistant', 'content': ' < '.join([f"[{i + 1}]" for i in answers])}
         ]
         input_length = len(self.tokenizer.apply_chat_template(messages[:-1], add_generation_prompt=True))
