@@ -65,6 +65,7 @@ class DataTrainingArguments:
     num_timeline_reorder: int = field(default=0)
     num_timeline_reorder_events: List[int] = field(default_factory=lambda: [5])
     append_question: bool = field(default=False)
+    is_sentence_based: bool = field(default=False)
     
     def __post_init__(self):
         if len(self.num_timeline_reorder_events) == 1:
