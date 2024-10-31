@@ -294,16 +294,13 @@ class ContextDataset(Dataset):
         return (input_ids, input_length)
 
     def timeline_reorder_sent_gen(self, full_context: str, num_events: Union[int, tuple[int, int]], model_max_length: int=4096):
-        sentences = sent_tokenize(full_context)
         if isinstance(num_events, tuple):
             num_events = randint(num_events[0], num_events[1] + 1)
-        for _ in range(10):  # Max trying times
-            sentence_ids = choice(len(sentences), num_events, replace=False)
-            summaries = [sentences[i] for i in sentence_ids]
-            if all(len(s) >= 50 for s in summaries):
-                break
-        else:
-            raise ValueError("Fail to generate a sentence-based timeline reorder task.")
+        sentences = [s for s in sent_tokenize(full_context) if len(s) >= 50]
+        assert len(sentences) >= num_events, "No enough long sentences to generate sentence-based timeline reorder task."
+        sentence_ids = choice(len(sentences), num_events, replace=False).tolist()
+        sentence_ids.sort()
+        summaries = [sentences[i] for i in sentence_ids]
         ranks = list(range(num_events))
         answers = list(range(num_events))
         shuffle(ranks)

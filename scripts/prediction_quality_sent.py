@@ -56,7 +56,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
     
     tokenizer = AutoTokenizer.from_pretrained(args['model_name_or_path'])
     tokenizer.pad_token = tokenizer.eos_token
-    for sample_id, sample in enumerate(tqdm.tqdm(samples[28:], desc="Prediction")):
+    for sample_id, sample in enumerate(tqdm.tqdm(samples, desc="Prediction")):
         if sample_id < len(results) - 1:
             continue
         printGPU(f"Before training")
