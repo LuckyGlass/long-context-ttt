@@ -61,7 +61,7 @@ def main():
                         scores.append(score)
                         scores_wo_error.append(score)
         elif 'pred' in sample and ('answers' in sample or 'answer' in sample):
-            answer_pattern = r"\[[0-9]+\](?: < \[[0-9]+\])*"
+            answer_pattern = r"\[[0-9]+\](?: [<>] \[[0-9]+\])*"
             if 'answer' in sample:
                 answer = sample['answer']
             else:
