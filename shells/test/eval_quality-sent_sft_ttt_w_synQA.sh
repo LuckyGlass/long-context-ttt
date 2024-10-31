@@ -10,7 +10,7 @@
 #SBATCH -c 1
 
 wandb disabled
-python scripts/prediction_quality.py \   
+python scripts/prediction_quality_sent.py \   
     --remove_unused_columns False \   
     --model_name_or_path /scratch/nlp/long-context-ttt/models/sft_sent \   
     --is_peft_model True \   

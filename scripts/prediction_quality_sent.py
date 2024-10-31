@@ -56,21 +56,21 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
     
     tokenizer = AutoTokenizer.from_pretrained(args['model_name_or_path'])
     tokenizer.pad_token = tokenizer.eos_token
-    for sample_id, sample in enumerate(tqdm.tqdm(samples, desc="Prediction")):
+    for sample_id, sample in enumerate(tqdm.tqdm(samples[28:], desc="Prediction")):
         if sample_id < len(results) - 1:
             continue
         printGPU(f"Before training")
         context = sample['content']
         summaries = sample['summaries']
-        answers = sample['answers']
+        #answers = sample['answers']
         prompt = PROMPT_FORMAT.format_map({
             'num_events': len(summaries),
             'events': '\n'.join(f"[{i + 1}]: {summaries[i]}" for i in range(len(summaries))),
-            'content': sample['input'],
+            'content': context,
             'answer_format': ' < '.join(['[]'] * len(summaries))
         })
         if args['append_question']:
-            model = trainQuALITY(sample['input'], tokenizer, training_args, events=summaries, **args)
+            model = trainQuALITY(context, tokenizer, training_args, events=summaries, **args)
         else:
             model = trainQuALITY(context, tokenizer, training_args, **args)
         model.eval()
