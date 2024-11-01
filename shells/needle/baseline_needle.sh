@@ -1,6 +1,6 @@
 python scripts/prediction_needle.py \
     --haystack_path datasets/needle/PaulGrahamEssays \
-    --output_path outputs/needle-debug.json \
+    --output_path outputs/needle-baseline.json \
     --test_length_min 8000 \
     --test_length_max 16000 \
     --test_length_num 50 \
