@@ -103,7 +103,7 @@ def train(dataset: ContextDataset, tokenizer: PreTrainedTokenizer, training_args
     torch.cuda.empty_cache()  # Manually release memory
     # Load and finetune the model
     dataset.disable_qa()
-    trainer, model = load_trainer(dataset, tokenizer, training_args, trainer_cls=WeightedTrainer, **kwargs)
+    trainer, model = load_trainer(dataset, tokenizer, training_args, trainer_cls=Trainer, **kwargs)
     trainer.train()
     # Load the dataset with QA pairs and continue-finetune the model
     if involve_qa_epochs > 0:
