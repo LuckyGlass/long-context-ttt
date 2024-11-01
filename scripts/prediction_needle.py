@@ -11,8 +11,10 @@ from fastchat.model import get_conversation_template
 
 from glob import glob
 from typing import List, Optional
+import torch.utils
+import torch.utils.data
 from tqdm import tqdm
-from transformers import TrainingArguments
+from transformers import TrainingArguments, PreTrainedTokenizer
 from transformers.utils import logging
 from dataclasses import dataclass, field, asdict
 
@@ -44,42 +46,40 @@ class TestArgs(GlobalTestArguments):
         default="long-llm:needle/PaulGrahamEssays",
         metadata={'help': 'The context for evaluation.'}
     )
-    result_dir: str = field(
-        default="",
-        metadata={'help': 'The base directory for saving results and logs.'}
+    output_path: Optional[str] = field(
+        default=None,
+        metadata={'help': "The output file."}
     )
-
-    min_length: int = field(
-        default=8192,
-        metadata={'help': 'Minimum context length in evaluation.'}
+    test_length_min: Optional[int] = field(
+        default=None,
+        metadata={'help': "The minimum length of the input."}
     )
-    max_length: int = field(
-        default=131072,
-        metadata={'help': 'Maximum context length in evaluation.'}
+    test_length_max: Optional[int] = field(
+        default=None,
+        metadata={'help': "The maximum length of the input."}
     )
-    num_length_interval: int = field(
-        default=10,
-        metadata={'help': 'Number of invervals between min_length and max_length.'}
+    test_length_num: Optional[int] = field(
+        default=None,
+        metadata={'help': "The number of the tested input lengths."}
     )
     test_length: List[int] = field(
-        default=None,
+        default_factory=lambda: [],
         metadata={'help': 'Specified evaluation lengths.'}
     )
-
-    min_depth: float = field(
-        default=0,
-        metadata={'help': 'Minimum pass key depth in the context.'}
+    test_depth_min: Optional[int] = field(
+        default=None,
+        metadata={'help': "The minimum depth of the needle (from 0 to 100)."}
     )
-    max_depth: float = field(
-        default=100,
-        metadata={'help': 'Maximum pass key depth in the context.'}
+    test_depth_max: Optional[int] = field(
+        default=None,
+        metadata={'help': "The maximum depth of the needle (from 0 to 100)."}
     )
-    num_depth_interval: int = field(
-        default=6,
-        metadata={'help': 'Number of invervals between min_depth and max_depth.'}
+    test_depth_num: Optional[int] = field(
+        default=None,
+        metadata={'help': "The number of the tested needle depth."}
     )
     test_depth: List[int] = field(
-        default=None,
+        default_factory=lambda: [],
         metadata={'help': 'Specified evaluation depths.'}
     )
 
@@ -91,21 +91,6 @@ class TestArgs(GlobalTestArguments):
         default='\n\nWhat is the best thing to do in San Francisco?\nAnswer:',
         metadata={'help': 'The needle content'}
     )
-
-    chat_template: str = field(
-        default="vicuna",
-        metadata={'help': 'Instruction template name in fastchat.'}
-    )
-    gpt_eval: bool = field(
-        default=False,
-        metadata={'help': 'Use GPT4 to evaluate accuracy.'}
-    )
-    cpu: bool = field(
-        default=False,
-        metadata={'help': 'Use cpu?'}
-    )
-
-
     zh: bool = field(
         default=False,
         metadata={'help': 'Eval Chinese Text.'}
@@ -126,7 +111,6 @@ def generate_sample(
     needle_depth, 
     needle="\n\nThe best thing to do in San Francisco is eat a sandwich and sit in Dolores Park on a sunny day.\n\n", 
     prompt='\n\nWhat is the best thing to do in San Francisco?\nAnswer:',
-    chat_template="vicuna",
     zh=False,
 ):
     """ It's modified for TTT use.
@@ -172,30 +156,29 @@ def generate_sample(
     inputs = tokenizer.decode(input_ids)
     context_return = tokenizer.decode(context_ids)
 
-    if chat_template != "none":
-        conv = get_conversation_template(chat_template)
-        conv.append_message(conv.roles[0], inputs)
-        conv.append_message(conv.roles[1], None)
-        inputs = conv.get_prompt()
-
     return inputs, context_return, needle
 
 
-def main():
-    args, training_args, ttt_args = parse_args((TestArgs, TrainingArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)), no_dict=(TrainingArguments, TestArgs))
+def needleTrain(context: str, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, **kwargs):
+    context_dataset = ContextDataset(context, tokenizer, **kwargs)
+    model = train(context_dataset, tokenizer, training_args, **kwargs)[0]
+    return model
 
-    result_dir = args.result_dir
-    os.makedirs(result_dir, exist_ok=True)
+
+def main():
+    (args, training_args, ttt_args), config = parse_args((TestArgs, TrainingArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)), no_dict=(TrainingArguments, TestArgs), return_config=True)
 
     tokenizer = load_tokenizer(ttt_args['model_name_or_path'])
+    model_max_length = ttt_args['model_max_length']
+    output_path = args.output_path
     
     # Needle in a haystack generation configs
-    if args.test_length is None:
-        test_lengths = np.linspace(args.min_length, args.max_length, args.num_length_interval, endpoint=True).astype(int).tolist()
+    if len(args.test_depth) == 0:
+        test_lengths = np.linspace(args.test_length_min, args.test_length_max, args.test_length_num, endpoint=True).astype(int).tolist()
     else:
         test_lengths = args.test_length
-    if args.test_depth is None:
-        test_depths = np.linspace(args.min_depth, args.max_depth, args.num_depth_interval, endpoint=True).astype(int).tolist()
+    if len(args.test_depth) == 0:
+        test_depths = np.linspace(args.test_depth_min, args.test_depth_max, args.test_depth_num, endpoint=True).astype(int).tolist()
     else:
         test_depths = args.test_depth
 
@@ -216,90 +199,88 @@ def main():
     else:
         raise ValueError(f"Cannot find haystack: {args.haystack_path}")
     # Load or create the input cache
-    pickle_name = os.path.join(args.haystack_path, f"{args.min_length}-{args.max_length}.pickle")
-    print(pickle_name)
+    pickle_name = os.path.join(args.haystack_path, f"{args.test_length_min}-{args.test_length_max}.pickle")
     if os.path.exists(pickle_name):
+        print(f"Detect and load the cached input file {pickle_name}.")
         with open(pickle_name, "rb") as handle:
             all_inputs = pickle.load(handle)
     else:
+        print(f"Find no cached input file.")
         all_inputs = []
         for length in tqdm(test_lengths, desc="Constructing Data"):
             for depth in test_depths:
-                inputs, context_return, needle = generate_sample(
-                    tokenizer=tokenizer, 
+                prompt, context, needle = generate_sample(
+                    tokenizer=tokenizer,
                     context=context,
                     context_length=length, 
                     needle_depth=depth,
                     needle=args.needle,
                     prompt=args.prompt,
-                    chat_template=args.chat_template,
                     zh=args.zh
                 )
-                all_inputs.append({'inputs': inputs, 'context_return': context_return, 'needle': needle, 'length': length, 'depth': depth})
+                all_inputs.append(dict(
+                    prompt=prompt,
+                    context=context,
+                    needle=needle,
+                    length=length,
+                    depth=depth
+                ))
+        print(f"Cache the input file in {pickle_name}")
         with open(pickle_name, 'wb') as handle:
             pickle.dump(all_inputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    # Create the dataset and the dataloader
-    dataset = datasets.Dataset.from_list(all_inputs)
-    dataloader = torch.utils.data.DataLoader(
-        dataset.remove_columns(['length', 'depth', 'needle']), 
-        batch_size=1, 
-        collate_fn=DefaultDataCollator(tokenizer),
-        pin_memory=not args.cpu,
-    )
-
+    # Resume from the checkpoint
+    if os.path.exists(output_path) and not args['overwrite']:
+        print(f"Detect the output file {output_path}.")
+        with open(output_path, 'r') as f:
+            all_outputs = json.load(f)
+        print(f"Resume {len(all_outputs) - 1} entries from {output_path}.")
+    else:
+        all_outputs = [config]
     # Forward
-    all_outputs = []
-    for x in tqdm(dataloader, desc="Evaluating"):
-        torch.cuda.empty_cache()
+    num_samples = len(all_inputs)
+    for sample_id, sample in enumerate(tqdm(all_inputs, desc="Evaluating")):
+        if sample_id + 1 < len(all_outputs):
+            continue
+        prompt = sample['prompt']
+        context = sample['context']
         time1 = time.time()
-        inputs = x.pop("inputs")
-        context_return = x.pop('context_return')[0]
-        context_dataset = ContextDataset(
-            context=context_return,
-            tokenizer=tokenizer,
-            **ttt_args
-        )
+        model = needleTrain(context, tokenizer, training_args, **ttt_args)
         time2 = time.time()
-        print(f"DEBUG 1: {time2 - time1}")
-        model = train(context_dataset, tokenizer, training_args, **ttt_args)[0]
-        time3 = time.time()
-        print(f"DEBUG 2: {time3 - time2}")
+        print(f"Sample {sample_id + 1} / {num_samples}: Training cost time = {time2 - time1}")
         with torch.no_grad():
             model.eval()
-            inputs = tokenizer(inputs, add_special_tokens=False, return_tensors='pt')
-            outputs = model.generate(
-                input_ids=inputs.input_ids,
-                attention_mask=inputs.attention_mask,
+            messages = [
+                {'role': 'system', 'content': "You are a helpful assistant."},
+                {'role': 'user', 'content': prompt}
+            ]
+            input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt')
+            if input_ids.shape[-1] > model_max_length:
+                input_ids = torch.concat((input_ids[:, :model_max_length//2], input_ids[-model_max_length//2:]), dim=-1)
+            attention_mask = torch.ones_like(input_ids)
+            output_ids = model.generate(
+                input_ids=input_ids.to(model.device),
+                attention_mask=attention_mask.to(model.device),
                 max_new_tokens=50,
                 num_beams=1,
                 do_sample=False,
                 temperature=1.,
                 pad_token_id=tokenizer.pad_token_id,
-            )
+            )[0]
+        time3 = time.time()
+        print(f"Sample {sample_id + 1} / {num_samples}: Generation cost time = {time3 - time2}")
+        output_ids = output_ids[input_ids.shape[-1]:]
+        pred = tokenizer.decode(output_ids, skip_special_tokens=True)
+
+        all_outputs.append(dict(
+            length=sample['length'],
+            depth=sample['depth'],
+            pred=pred,
+            needle=sample['needle']
+        ))
+        with open(output_path, 'w') as f:
+            json.dump(all_outputs, f, indent=4)
         time4 = time.time()
-        print(f"DEBUG 3: {time4 - time3}")
-        outputs = outputs[:, inputs['input_ids'].shape[1]:].contiguous()
-
-        all_outputs.extend(outputs.tolist())
-        del model, outputs
-
-    # Decode and save the outputs and the config
-    results = {l: {d: [] for d in test_depths} for l in test_lengths}
-
-    all_outputs = tokenizer.batch_decode(all_outputs, skip_special_tokens=True)
-    all_lengths = dataset['length']
-    all_depths = dataset['depth']
-    all_needles = dataset['needle']
-
-    for l, d, n, o in zip(all_lengths, all_depths, all_needles, all_outputs):
-        if args.zh:
-            n = n.replace('\\n', '\n')
-            o = o.replace('\\n', '\n')
-        results[l][d].append({'target': n.replace('\n', ''), 'prediction': o.split('\n')[0].replace('\n', '')})
-
-    with open(makedirs(os.path.join(result_dir, "results.json")), "w", encoding='utf-8') as f:
-        json.dump(results, f, ensure_ascii=False)
-    args.save(os.path.join(result_dir, "config.json"))
+        print(f"Sample {sample_id + 1} / {num_samples}: Post-processing cost time = {time4 - time3}")
 
 
 if __name__ == "__main__":
