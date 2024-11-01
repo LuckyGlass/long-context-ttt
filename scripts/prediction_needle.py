@@ -229,7 +229,7 @@ def main():
         with open(pickle_name, 'wb') as handle:
             pickle.dump(all_inputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
     # Resume from the checkpoint
-    if os.path.exists(output_path) and not args['overwrite']:
+    if os.path.exists(output_path) and not args.overwrite:
         print(f"Detect the output file {output_path}.")
         with open(output_path, 'r') as f:
             all_outputs = json.load(f)
