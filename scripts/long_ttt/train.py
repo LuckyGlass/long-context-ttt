@@ -104,7 +104,8 @@ def train(dataset: ContextDataset, tokenizer: PreTrainedTokenizer, training_args
     # Load and finetune the model
     dataset.disable_qa()
     trainer, model = load_trainer(dataset, tokenizer, training_args, trainer_cls=Trainer, **kwargs)
-    trainer.train()
+    if training_args.num_train_epochs > 0:
+        trainer.train()
     # Load the dataset with QA pairs and continue-finetune the model
     if involve_qa_epochs > 0:
         dataset.enable_qa()
