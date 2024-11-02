@@ -1,12 +1,14 @@
-python scripts/prediction_needle.py \
+CUDA_VISIBLE_DEVICES=1 python scripts/prediction_needle.py \
     --haystack_path datasets/needle/PaulGrahamEssays \
     --output_path outputs/needle-baseline.json \
     --test_length_min 8000 \
-    --test_length_max 16000 \
-    --test_length_num 50 \
+    --test_length_max 128000 \
+    --test_length_num 32 \
     --test_depth_min 0 \
     --test_depth_max 100 \
     --test_depth_num 10 \
+    --prompt "\n\nWhat is the best thing to do in Peking University?\nAnswer:" \
+    --needle "\n\nThe best thing to do in Peking University is taking photos and singing a song on a sunny day.\n\n" \
     --model_name_or_path models/Meta-Llama-3-8B-Instruct \
     --model_max_length 7500 \
     --block_size 256 \
@@ -36,4 +38,3 @@ python scripts/prediction_needle.py \
     --tf32 False \
     --gradient_checkpointing True \
     --remove_unused_columns False
-
