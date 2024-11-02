@@ -111,7 +111,7 @@ def train(dataset: ContextDataset, tokenizer: PreTrainedTokenizer, training_args
         dataset.enable_qa()
         training_args_syn = deepcopy(training_args)
         training_args_syn.num_train_epochs = involve_qa_epochs
-        trainer_syn, model = load_trainer(dataset, tokenizer, training_args_syn, model=model, optimizer=trainer.optimizer, trainer_cls=WeightedTrainer, **kwargs)
+        trainer_syn, model = load_trainer(dataset, tokenizer, training_args_syn, model=model, optimizer=trainer.optimizer, trainer_cls=Trainer, **kwargs)
         trainer_syn.train()
     # Clear cache
     for param in model.parameters():
