@@ -21,6 +21,7 @@ python scripts/prediction_quality_sent.py \
     --generator_name_or_path models/Meta-Llama-3-8B-Instruct \
     --num_timeline_reorder 5 \
     --num_timeline_reorder_events 4 6 \
+    --is_sentence_based True \
     --full_ft True \
     --gather_batches True \
     --num_train_epochs 2 \
