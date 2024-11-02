@@ -100,6 +100,9 @@ class GlobalTestArguments:
     overwrite: bool = field(default=True)
     enable_ICL: bool = field(default=True)
     recite_first: bool = field(default=False)
+    
+    def __post_init__(self):
+        pass
 
 
 def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any], return_config: bool=False):

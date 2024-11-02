@@ -167,6 +167,10 @@ def needleTrain(context: str, tokenizer: PreTrainedTokenizer, training_args: Tra
 
 def main():
     (args, training_args, ttt_args), config = parse_args((TestArgs, TrainingArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)), no_dict=(TrainingArguments, TestArgs), return_config=True)
+    args.needle = eval('\"\"\"' + args.needle + '\"\"\"')
+    args.prompt = eval('\"\"\"' + args.prompt + '\"\"\"')
+    print(f"The prompt is:\n{args.prompt}")
+    print(f"The needle is:\n{args.needle}")
 
     tokenizer = load_tokenizer(ttt_args['model_name_or_path'])
     model_max_length = ttt_args['model_max_length']
@@ -270,6 +274,7 @@ def main():
         print(f"Sample {sample_id + 1} / {num_samples}: Generation cost time = {time3 - time2}")
         output_ids = output_ids[input_ids.shape[-1]:]
         pred = tokenizer.decode(output_ids, skip_special_tokens=True)
+        print(f"Prediction:\n{pred}")
 
         all_outputs.append(dict(
             length=sample['length'],
