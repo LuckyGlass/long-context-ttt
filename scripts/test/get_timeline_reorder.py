@@ -27,6 +27,7 @@ def concordinary_index(pred_list, right_list):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('pred')
+    parser.add_argument('--strict_mode', type=bool, default=True)
     args = parser.parse_args()
     with open(args.pred, 'r') as f:
         ext = os.path.splitext(args.pred)[1]
@@ -46,12 +47,23 @@ def main():
                 answer = qa['answers']
                 if 0 in answer:
                     answer = list(map(lambda x: x + 1, qa['answers']))
-                pred = re.findall(answer_pattern, qa['pred'])
-                if len(pred) == 0:
-                    errors.append(1)
-                    scores.append(0)
+                if args.strict_mode:
+                    pred = re.findall(answer_pattern, qa['pred'])
+                    if len(pred) == 0:
+                        errors.append(1)
+                        scores.append(0)
+                    else:
+                        pred = list(map(int, re.findall(r"[0-9]+", pred[0])))
+                        score, error = concordinary_index(pred, answer)
+                        if error:
+                            errors.append(1)
+                            scores.append(0)
+                        else:
+                            errors.append(0)
+                            scores.append(score)
+                            scores_wo_error.append(score)
                 else:
-                    pred = list(map(int, re.findall(r"[0-9]+", pred[0])))
+                    pred = list(map(int, re.findall(r"[0-9]+", qa['pred'])))
                     score, error = concordinary_index(pred, answer)
                     if error:
                         errors.append(1)
