@@ -82,6 +82,10 @@ class TestArgs(GlobalTestArguments):
         default_factory=lambda: [],
         metadata={'help': 'Specified evaluation depths.'}
     )
+    num_samples_per_case: int = field(
+        default=1,
+        metadata={'help': 'The number of samples in a case of \"length x case\". Different samples differ in the contexts but their needles are the same.'}
+    )
 
     needle: str = field(
         default="\n\nThe best thing to do in San Francisco is eat a sandwich and sit in Dolores Park on a sunny day.\n\n",
@@ -177,7 +181,7 @@ def main():
     output_path = args.output_path
     
     # Needle in a haystack generation configs
-    if len(args.test_depth) == 0:
+    if len(args.test_length) == 0:
         test_lengths = np.linspace(args.test_length_min, args.test_length_max, args.test_length_num, endpoint=True).astype(int).tolist()
     else:
         test_lengths = args.test_length
@@ -188,18 +192,23 @@ def main():
 
     # Read context datasets
     if os.path.isfile(args.haystack_path):
+        raise ValueError
         with open(args.haystack_path) as f:
             context = f.read().strip()
     elif os.path.isdir(args.haystack_path):
-        context = ""
+        contexts = []
         num_tokens = 0
-        for file in glob(f"{args.haystack_path}/*.txt"):
-            with open(file, 'r') as f:
-                this_file_context = f.read()
-                num_tokens += len(tokenizer.encode(this_file_context, add_special_tokens=False))
-                context += this_file_context
-                if num_tokens > max(test_lengths):
-                    break
+        file_names = [file for file in glob(f"{args.haystack_path}/*.txt")]
+        for i in range(args.num_samples_per_case):
+            contexts.append("")
+            np.random.shuffle(file_names)
+            for file in file_names:
+                with open(file, 'r') as f:
+                    this_file_context = f.read()
+                    num_tokens += len(tokenizer.encode(this_file_context, add_special_tokens=False))
+                    contexts[i] += this_file_context
+                    if num_tokens > max(test_lengths):
+                        break
     else:
         raise ValueError(f"Cannot find haystack: {args.haystack_path}")
     # Load or create the input cache
@@ -213,22 +222,23 @@ def main():
         all_inputs = []
         for length in tqdm(test_lengths, desc="Constructing Data"):
             for depth in test_depths:
-                prompt, context, needle = generate_sample(
-                    tokenizer=tokenizer,
-                    context=context,
-                    context_length=length, 
-                    needle_depth=depth,
-                    needle=args.needle,
-                    prompt=args.prompt,
-                    zh=args.zh
-                )
-                all_inputs.append(dict(
-                    prompt=prompt,
-                    context=context,
-                    needle=needle,
-                    length=length,
-                    depth=depth
-                ))
+                for i in range(args.num_samples_per_case):
+                    prompt_case, context_case, needle_case = generate_sample(
+                        tokenizer=tokenizer,
+                        context=contexts[i],
+                        context_length=length, 
+                        needle_depth=depth,
+                        needle=args.needle,
+                        prompt=args.prompt,
+                        zh=args.zh
+                    )
+                    all_inputs.append(dict(
+                        prompt=prompt_case,
+                        context=context_case,
+                        needle=needle_case,
+                        length=length,
+                        depth=depth
+                    ))
         print(f"Cache the input file in {pickle_name}")
         with open(pickle_name, 'wb') as handle:
             pickle.dump(all_inputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -269,6 +279,7 @@ def main():
                 do_sample=False,
                 temperature=1.,
                 pad_token_id=tokenizer.pad_token_id,
+                use_cache=True
             )[0]
         time3 = time.time()
         print(f"Sample {sample_id + 1} / {num_samples}: Generation cost time = {time3 - time2}")
