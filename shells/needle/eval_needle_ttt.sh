@@ -12,14 +12,13 @@
 python scripts/prediction_needle.py \
     --haystack_path datasets/needle/PaulGrahamEssays \
     --output_path outputs/needle-ttt.json \
-    --test_length_min 8000 \
-    --test_length_max 128000 \
-    --test_length_num 32 \
+    --test_length 1000 10000 19000 28000 37000 46000 55000 64000 73000 82000 91000 100000 109000 118000 128000 \
     --test_depth_min 0 \
     --test_depth_max 100 \
     --test_depth_num 10 \
-    --prompt "\n\nWhat is the best thing to do in Peking University?\nAnswer:" \
-    --needle "\n\nThe best thing to do in Peking University is taking photos and singing a song on a sunny day.\n\n" \
+    --num_samples_per_case 5 \
+    --prompt "\n\nWhat is the best thing to do in ABC University?\nAnswer:" \
+    --needle "\n\nThe best thing to do in ABC University is taking photos and singing a song on a sunny day.\n\n" \
     --model_name_or_path models/Meta-Llama-3-8B-Instruct \
     --model_max_length 7500 \
     --block_size 256 \
@@ -35,7 +34,7 @@ python scripts/prediction_needle.py \
     --output_dir models/temp \
     --overwrite_output_dir True \
     --per_device_train_batch_size 1 \
-    --learning_rate 1e-6 \
+    --learning_rate 1e-5 \
     --weight_decay 1e-4 \
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
