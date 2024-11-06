@@ -70,8 +70,20 @@ def gpt_eval(data: list[dict], st_point: int, question: str, answer: str, cache_
     return data
 
 
-def plot_data(eval_data: list[dict], st_point: int, output_path: str):
-    table = [{'Document Depth': d['depth'], 'Context Length': d['length'], 'Score': d['gpt_score']} for d in eval_data[st_point:]]
+def toggle_test_cases(data: list[dict], st_point: int):
+    table = {}
+    for sample in data[st_point:]:
+        item = (sample['length'], sample['depth'])
+        if item not in table:
+            table[item] = []
+        table[item].append(sample['gpt_score'])
+    for key in table:
+        table[key] = sum(table[key]) / len(table[key])
+    return [{'depth': d, 'length': l, 'gpt_score': v} for (l, d), v in table.items()]
+
+
+def plot_data(eval_data: list[dict], output_path: str):
+    table = [{'Document Depth': d['depth'], 'Context Length': d['length'], 'Score': d['gpt_score']} for d in eval_data]
     df = pd.DataFrame(table)
     print(df.head())
     print (f"You have {len(df)} rows")
@@ -94,7 +106,7 @@ def plot_data(eval_data: list[dict], st_point: int, output_path: str):
     )
 
     # More aesthetics
-    plt.title('Pressure Testing GPT-4 128K Context\nFact Retrieval Across Context Lengths ("Needle In A HayStack")')  # Adds a title
+    # plt.title('Pressure Testing GPT-4 128K Context\nFact Retrieval Across Context Lengths ("Needle In A HayStack")')  # Adds a title
     plt.xlabel('Token Limit')  # X-axis label
     plt.ylabel('Depth Percent')  # Y-axis label
     plt.xticks(rotation=45)  # Rotates the x-axis labels to prevent overlap
@@ -117,7 +129,8 @@ def main():
     cache_path = pred_file_name + '-gptscore' + pred_file_ext
     data, st_point = load_pred_file(args.pred_file)
     eval_data = gpt_eval(data, st_point, args.question, args.answer, cache_path)
-    plot_data(eval_data, st_point, args.output_path)
+    eval_data = toggle_test_cases(eval_data, st_point)
+    plot_data(eval_data, args.output_path)
 
 
 if __name__ == '__main__':
