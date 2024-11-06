@@ -99,6 +99,10 @@ class TestArgs(GlobalTestArguments):
         default=False,
         metadata={'help': 'Eval Chinese Text.'}
     )
+    reversed_order: bool = field(
+        default=False,
+        metadata={'help': "Whether to test in reversed order. Using two programs with one in default order and the other in reversed order to speed up."}
+    )
     
     def to_dict(self):
         return asdict(self)
@@ -242,6 +246,9 @@ def main():
         print(f"Cache the input file in {pickle_name}")
         with open(pickle_name, 'wb') as handle:
             pickle.dump(all_inputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    if args.reversed_order:
+        print("Test in reversed order.")
+        all_inputs = all_inputs[::-1]
     # Resume from the checkpoint
     if os.path.exists(output_path) and not args.overwrite:
         print(f"Detect the output file {output_path}.")
