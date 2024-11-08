@@ -189,6 +189,8 @@ def main():
         test_lengths = np.linspace(args.test_length_min, args.test_length_max, args.test_length_num, endpoint=True).astype(int).tolist()
     else:
         test_lengths = args.test_length
+        args.test_length_min = min(args.test_length)
+        args.test_length_max = max(args.test_length)
     if len(args.test_depth) == 0:
         test_depths = np.linspace(args.test_depth_min, args.test_depth_max, args.test_depth_num, endpoint=True).astype(int).tolist()
     else:
@@ -262,7 +264,7 @@ def main():
     for sample_id, sample in enumerate(tqdm(all_inputs, desc="Evaluating")):
         if sample_id + 1 < len(all_outputs):
             continue
-        prompt = sample['prompt']
+        prompt = sample['prompt'] if args.enable_ICL else args.prompt.strip()
         context = sample['context']
         time1 = time.time()
         model = needleTrain(context, tokenizer, training_args, **ttt_args)
