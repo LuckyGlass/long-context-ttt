@@ -12,6 +12,7 @@
 python scripts/prediction_needle.py \
     --haystack_path datasets/needle/PaulGrahamEssays \
     --output_path outputs/needle-ttt-reversed.json \
+    --overwrite False \
     --test_length 1000 10000 19000 28000 37000 46000 55000 64000 73000 82000 91000 100000 109000 118000 128000 \
     --test_depth_min 0 \
     --test_depth_max 100 \
