@@ -103,6 +103,10 @@ class TestArgs(GlobalTestArguments):
         default=False,
         metadata={'help': "Whether to test in reversed order. Using two programs with one in default order and the other in reversed order to speed up."}
     )
+    reciting_mode: bool = field(
+        default=False,
+        metadata={'help': "Whether to enable reciting mode. If it's set to True, it will ask the model to recite the needle in the form of continuing generation."}
+    )
     
     def to_dict(self):
         return asdict(self)
@@ -179,6 +183,9 @@ def main():
     args.prompt = eval('\"\"\"' + args.prompt + '\"\"\"')
     print(f"The prompt is:\n{args.prompt}")
     print(f"The needle is:\n{args.needle}")
+    if args.enable_ICL and args.reciting_mode:
+        print("Reciting mode is enabled. --enabled_ICL is set to False.")
+        args.enable_ICL = False
 
     tokenizer = load_tokenizer(ttt_args['model_name_or_path'])
     model_max_length = ttt_args['model_max_length']
@@ -272,11 +279,15 @@ def main():
         print(f"Sample {sample_id + 1} / {num_samples}: Training cost time = {time2 - time1}")
         with torch.no_grad():
             model.eval()
-            messages = [
-                {'role': 'system', 'content': "You are a helpful assistant."},
-                {'role': 'user', 'content': prompt}
-            ]
-            input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt')
+            if args.reciting_mode:
+                input_ids = tokenizer(prompt, add_special_tokens=False, return_tensors='pt').input_ids
+                print('!' * 10, tokenizer.decode(input_ids[0]))
+            else:
+                messages = [
+                    {'role': 'system', 'content': "You are a helpful assistant."},
+                    {'role': 'user', 'content': prompt}
+                ]
+                input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt')
             if input_ids.shape[-1] > model_max_length:
                 input_ids = torch.concat((input_ids[:, :model_max_length//2], input_ids[:, -model_max_length//2:]), dim=-1)
             attention_mask = torch.ones_like(input_ids)
