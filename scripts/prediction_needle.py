@@ -107,6 +107,10 @@ class TestArgs(GlobalTestArguments):
         default=False,
         metadata={'help': "Whether to enable reciting mode. If it's set to True, it will ask the model to recite the needle in the form of continuing generation."}
     )
+    force_regenerate: bool = field(
+        default=False,
+        metadata={'help': "Whether to delete the cached input file and regenerate the inputs."}
+    )
     
     def to_dict(self):
         return asdict(self)
@@ -226,7 +230,7 @@ def main():
         raise ValueError(f"Cannot find haystack: {args.haystack_path}")
     # Load or create the input cache
     pickle_name = os.path.join(args.haystack_path, f"{args.test_length_min}-{args.test_length_max}.pickle")
-    if os.path.exists(pickle_name):
+    if os.path.exists(pickle_name) and not args.force_regenerate:
         print(f"Detect and load the cached input file {pickle_name}.")
         with open(pickle_name, "rb") as handle:
             all_inputs = pickle.load(handle)
