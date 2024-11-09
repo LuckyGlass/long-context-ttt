@@ -4,13 +4,14 @@ import torch
 import json
 import datasets
 import pickle
+from nltk.tokenize import sent_tokenize
 
 import numpy as np
 
 from fastchat.model import get_conversation_template
 
 from glob import glob
-from typing import List, Optional
+from typing import List, Dict, Optional
 import torch.utils
 import torch.utils.data
 from tqdm import tqdm
@@ -111,6 +112,14 @@ class TestArgs(GlobalTestArguments):
         default=False,
         metadata={'help': "Whether to delete the cached input file and regenerate the inputs."}
     )
+    num_ttt_needles: int = field(
+        default=False,
+        metadata={'help': "The number of needle tasks used for TTT."}
+    )
+    ttt_needle_path: Optional[str] = field(
+        default=None,
+        metadata={'help': "The path to the prompts and the corresponding needles for TTT."}
+    )
     
     def to_dict(self):
         return asdict(self)
@@ -118,6 +127,35 @@ class TestArgs(GlobalTestArguments):
     def save(self, path):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f)
+
+
+class NeedleContextDataset(ContextDataset):
+    def __init__(self, context: str, tokenizer: PreTrainedTokenizer, ttt_needle_tasks: Optional[List[Dict[str, str]]], num_ttt_needles: int, **kwargs):
+        if num_ttt_needles > 0:
+            assert ttt_needle_tasks is not None
+            sentences = sent_tokenize(context)
+            selected_tasks = np.random.choice(ttt_needle_tasks, num_ttt_needles, replace=False)
+            for item in selected_tasks:
+                random_pos = np.random.randint(0, len(sentences))
+                sentences.insert(random_pos, item['needle'])
+            context = ' '.join(sentences)
+        super().__init__(context, tokenizer, **kwargs)
+        if num_ttt_needles > 0:
+            model_max_length = kwargs['model_max_length']
+            self.num_generate_qa = num_ttt_needles
+            for item in selected_tasks:
+                messages = [
+                    {'role': 'system', 'content': "You are a helpful assistant."},
+                    {'role': 'user', 'content': item['prompt']},
+                    {'role': 'assistant', 'content': item['needle']}
+                ]
+                input_length = len(tokenizer.apply_chat_template(messages[:-1], add_generation_prompt=True))
+                input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=False)
+                output_length = len(input_ids) - input_length
+                if len(input_ids) > model_max_length:
+                    input_ids = input_ids[:model_max_length//2] + input_ids[-model_max_length//2:]
+                    input_length = len(input_ids) - output_length
+                self.qa_data.append((input_ids, input_length))
 
 
 def generate_sample(
@@ -175,8 +213,8 @@ def generate_sample(
     return inputs, context_return, needle
 
 
-def needleTrain(context: str, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, **kwargs):
-    context_dataset = ContextDataset(context, tokenizer, **kwargs)
+def needleTrain(context: str, tokenizer: PreTrainedTokenizer, ttt_needle_tasks: Optional[List[Dict[str, str]]], num_ttt_needles: int, training_args: TrainingArguments, **kwargs):
+    context_dataset = NeedleContextDataset(context, tokenizer, ttt_needle_tasks, num_ttt_needles, **kwargs)
     model = train(context_dataset, tokenizer, training_args, **kwargs)[0]
     return model
 
@@ -190,6 +228,8 @@ def main():
     if args.enable_ICL and args.reciting_mode:
         print("Reciting mode is enabled. --enabled_ICL is set to False.")
         args.enable_ICL = False
+    if args.num_ttt_needles > 0:
+        assert args.ttt_needle_path is not None, "--num_ttt_needles > 0 but no --ttt_needle_path provided."
 
     tokenizer = load_tokenizer(ttt_args['model_name_or_path'])
     model_max_length = ttt_args['model_max_length']
@@ -270,6 +310,12 @@ def main():
         print(f"Resume {len(all_outputs) - 1} entries from {output_path}.")
     else:
         all_outputs = [config]
+    # Load the needle tasks for TTT
+    if args.ttt_needle_path is not None:
+        with open(args.ttt_needle_path, 'r') as f:
+            ttt_needle_tasks = json.load(f)
+    else:
+        ttt_needle_tasks = None
     # Forward
     num_samples = len(all_inputs)
     for sample_id, sample in enumerate(tqdm(all_inputs, desc="Evaluating")):
@@ -278,7 +324,7 @@ def main():
         prompt = sample['prompt'] if args.enable_ICL else args.prompt.strip()
         context = sample['context']
         time1 = time.time()
-        model = needleTrain(context, tokenizer, training_args, **ttt_args)
+        model = needleTrain(context, tokenizer, ttt_needle_tasks, args.num_ttt_needles, training_args, **ttt_args)
         time2 = time.time()
         print(f"Sample {sample_id + 1} / {num_samples}: Training cost time = {time2 - time1}")
         with torch.no_grad():
