@@ -23,6 +23,8 @@ python scripts/prediction_needle.py \
     --enable_ICL False \
     --reciting_mode False \
     --force_regenerate False \
+    --num_ttt_needles 50 \
+    --ttt_needle_path datasets/needle/processed_needles_ttt.json \
     --model_name_or_path models/Meta-Llama-3-8B-Instruct \
     --model_max_length 7500 \
     --block_size 256 \
@@ -31,8 +33,8 @@ python scripts/prediction_needle.py \
     --pad_to_max_length False \
     --full_ft True \
     --gather_batches True \
-    --num_train_epochs 10 \
-    --involve_qa_epochs 0 \
+    --num_train_epochs 3 \
+    --involve_qa_epochs 5 \
     --remove_unused_columns False \
     --report_to none \
     --output_dir models/temp \
