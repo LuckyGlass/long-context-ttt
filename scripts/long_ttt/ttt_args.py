@@ -9,8 +9,13 @@ MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 @dataclass
 class ModelArguments:
     model_name_or_path: str
+    tokenizer_name_or_path: Optional[str] = field(default=None)
     model_max_length: Optional[int] = field(default=None)
     is_peft_model: bool = field(default=False)
+    
+    def __post_init__(self):
+        if self.tokenizer_name_or_path is None:
+            self.tokenizer_name_or_path = self.model_name_or_path
 
 
 @dataclass

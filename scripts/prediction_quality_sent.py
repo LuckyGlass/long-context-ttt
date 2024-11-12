@@ -54,7 +54,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
         if debug_size is not None:
             samples = samples[:debug_size]
     
-    tokenizer = AutoTokenizer.from_pretrained(args['model_name_or_path'])
+    tokenizer = AutoTokenizer.from_pretrained(args['tokenizer_name_or_path'])
     tokenizer.pad_token = tokenizer.eos_token
     for sample_id, sample in enumerate(tqdm.tqdm(samples, desc="Prediction")):
         if sample_id < len(results) - 1:

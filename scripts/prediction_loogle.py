@@ -50,7 +50,7 @@ def prediction(training_args: TrainingArguments, args: dict, output_file: str, i
         data = json.load(f)
     model_max_length = args['model_max_length']
     # load the tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(args['model_name_or_path'])
+    tokenizer = AutoTokenizer.from_pretrained(args['tokenizer_name_or_path'])
     tokenizer.pad_token = tokenizer.eos_token
     # eval loop
     for index, sample in enumerate(tqdm.tqdm(data, total=len(data), desc="Predicting")):
