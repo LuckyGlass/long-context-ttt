@@ -27,7 +27,7 @@ def concordinary_index(pred_list, right_list):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('pred')
-    parser.add_argument('--strict_mode', type=bool, default=True)
+    parser.add_argument('--strict_mode', action='store_true')
     args = parser.parse_args()
     with open(args.pred, 'r') as f:
         ext = os.path.splitext(args.pred)[1]
@@ -73,19 +73,32 @@ def main():
                         scores.append(score)
                         scores_wo_error.append(score)
         elif 'pred' in sample and ('answers' in sample or 'answer' in sample):
-            answer_pattern = r"\[[0-9]+\](?: [<>] \[[0-9]+\])*"
             if 'answer' in sample:
                 answer = sample['answer']
             else:
                 answer = sample['answers']
             if 0 in answer:
-                answer = list(map(lambda x: x + 1, answer))
-            pred = re.findall(answer_pattern, sample['pred'])
-            if len(pred) == 0:
-                errors.append(1)
-                scores.append(0)
+                answer = [a + 1 for a in answer]
+            if args.strict_mode:
+                answer_pattern = r"\[[0-9]+\](?: [<>] \[[0-9]+\])*"
+                if 0 in answer:
+                    answer = list(map(lambda x: x + 1, answer))
+                pred = re.findall(answer_pattern, sample['pred'])
+                if len(pred) == 0:
+                    errors.append(1)
+                    scores.append(0)
+                else:
+                    pred = list(map(int, re.findall(r"[0-9]+", pred[0])))
+                    score, error = concordinary_index(pred, answer)
+                    if error:
+                        errors.append(1)
+                        scores.append(0)
+                    else:
+                        errors.append(0)
+                        scores.append(score)
+                        scores_wo_error.append(score)
             else:
-                pred = list(map(int, re.findall(r"[0-9]+", pred[0])))
+                pred = list(map(int, re.findall(r"[0-9]+", sample['pred'])))
                 score, error = concordinary_index(pred, answer)
                 if error:
                     errors.append(1)
