@@ -32,7 +32,7 @@ def Bamboo_train(full_text: str, tokenizer: PreTrainedTokenizer, training_args: 
 
 def prediction(dataset: list[dict], training_args: TrainingArguments, args: dict, output_file: str, num_resumed: int=0, **kwargs):
     logging.warning(f"Unused arguments: {list(kwargs.keys())}")
-    tokenizer = load_tokenizer(args['model_name_or_path'])
+    tokenizer = load_tokenizer(args['tokenizer_name_or_path'])
     model_max_length = args['model_max_length']
     for index, sample in enumerate(tqdm.tqdm(dataset, total=len(dataset), desc="Predicting")):
         if index < num_resumed:
