@@ -1,0 +1,50 @@
+#!/bin/bash
+#SBATCH -J mys_niah
+#SBATCH -N 1
+#SBATCH -p IAI_SLURM_HGX
+#SBATCH --gres gpu:4
+#SBATCH --qos 16gpu-hgx
+#SBATCH --time 72:00:00
+#SBATCH -o logs/%j-Needle-Long-Baseline.out.log
+#SBATCH -e logs/%j-Needle-Long-Baseline.err.log
+#SBATCH -c 1
+
+python scripts/prediction_needle.py \
+    --haystack_path datasets/needle/PaulGrahamEssays \
+    --output_path outputs/Needle-Long-Baseline.json \
+    --overwrite False \
+    --test_length 1000 10000 19000 28000 37000 46000 55000 64000 73000 82000 91000 100000 \
+    --test_depth_min 0 \
+    --test_depth_max 100 \
+    --test_depth_num 11 \
+    --num_samples_per_case 5 \
+    --force_regenerate False \
+    --is_baseline True \
+    --model_name_or_path models/Meta-Llama-3.1-8B-Instruct \
+    --model_max_length 128000 \
+    --block_size 256 \
+    --len_segment 8 \
+    --len_offset 3 \
+    --pad_to_max_length False \
+    --enable_ICL True \
+    --full_ft True \
+    --gather_batches True \
+    --num_train_epochs 0 \
+    --remove_unused_columns True \
+    --report_to none \
+    --output_dir models/temp \
+    --overwrite_output_dir True \
+    --per_device_train_batch_size 1 \
+    --learning_rate 1e-6 \
+    --weight_decay 1e-4 \
+    --adam_beta1 0.9 \
+    --adam_beta2 0.98 \
+    --adam_epsilon 1e-8 \
+    --max_grad_norm 1.0 \
+    --log_level info \
+    --logging_strategy steps \
+    --logging_steps 1 \
+    --save_strategy no \
+    --bf16 True \
+    --tf32 False \
+    --gradient_checkpointing True \
