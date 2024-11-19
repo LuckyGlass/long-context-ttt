@@ -113,12 +113,15 @@ class TestArgs(GlobalTestArguments):
         metadata={'help': "Whether to delete the cached input file and regenerate the inputs."}
     )
     num_ttt_needles: int = field(
-        default=False,
+        default=0,
         metadata={'help': "The number of needle tasks used for TTT."}
     )
     ttt_needle_path: Optional[str] = field(
         default=None,
         metadata={'help': "The path to the prompts and the corresponding needles for TTT."}
+    )
+    is_baseline: bool = field(
+        default=False
     )
     
     def to_dict(self):
@@ -254,9 +257,9 @@ def main():
             context = f.read().strip()
     elif os.path.isdir(args.haystack_path):
         contexts = []
-        num_tokens = 0
         file_names = [file for file in glob(f"{args.haystack_path}/*.txt")]
         for i in range(args.num_samples_per_case):
+            num_tokens = 0
             contexts.append("")
             np.random.shuffle(file_names)
             for file in file_names:
@@ -324,7 +327,21 @@ def main():
         prompt = sample['prompt'] if args.enable_ICL else args.prompt.strip()
         context = sample['context']
         time1 = time.time()
-        model = needleTrain(context, tokenizer, ttt_needle_tasks, args.num_ttt_needles, training_args, **ttt_args)
+        if args.is_baseline:
+            from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+            model = AutoModelForCausalLM.from_pretrained(
+                ttt_args['model_name_or_path'],
+                device_map='auto',
+                torch_dtype=torch.bfloat16,
+                quantization_config=BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type='nf4'
+                ),
+            )
+        else:
+            model = needleTrain(context, tokenizer, ttt_needle_tasks, args.num_ttt_needles, training_args, **ttt_args)
         time2 = time.time()
         print(f"Sample {sample_id + 1} / {num_samples}: Training cost time = {time2 - time1}")
         with torch.no_grad():
@@ -345,9 +362,7 @@ def main():
                 input_ids=input_ids.to(model.device),
                 attention_mask=attention_mask.to(model.device),
                 max_new_tokens=50,
-                num_beams=1,
                 do_sample=False,
-                temperature=1.,
                 pad_token_id=tokenizer.pad_token_id,
                 use_cache=True
             )[0]
