@@ -38,10 +38,12 @@ def load_base_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, loa
         model (PreTrainedModel): the base model.
     """
     model_cls = AutoModelForCausalLM
-    if load_in_8bit or load_in_4bit:
+    if load_in_4bit:
         quantization_config = BitsAndBytesConfig(
-            load_in_8bit=load_in_8bit,
-            load_in_4bit=load_in_4bit
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type='nf4'
         )
         model_base = model_cls.from_pretrained(
             model_name_or_path,
@@ -50,6 +52,8 @@ def load_base_model(model_name_or_path: str, tokenizer: PreTrainedTokenizer, loa
             torch_dtype = torch.bfloat16,
             quantization_config=quantization_config,
         )
+    elif load_in_8bit:
+        raise NotImplementedError
     else:
         model_base = model_cls.from_pretrained(
             model_name_or_path,
