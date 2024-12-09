@@ -28,7 +28,10 @@ class GroupedLinear(nn.Module):
         '''
         x: (bsz, #group_size, q_len, #in_dim)
         '''
-        x = torch.bmm(x, self.weight) + self.bias.unsqueeze(1)
+        if self.bias is None:
+            x = x @ self.weight
+        else:
+            x = x @ self.weight + self.bias.unsqueeze(1)
         return x
 
 

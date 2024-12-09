@@ -12,6 +12,9 @@ config = BitsAndBytesConfig(
 
 model = GMLlamaForCausalLM.from_pretrained("./newmodel", device_map="auto", quantization_config=config)
 
+train_param = 0
+total_param = 0
+
 for n, p in model.named_parameters():
     if "norm" in n:
         p.requires_grad_(False)
@@ -20,3 +23,10 @@ for n, p in model.named_parameters():
     if "lm_head" in n:
         p.requires_grad_(False)
     print(n, p.dtype, p.requires_grad)
+    total_param += p.numel()
+    if p.requires_grad:
+        train_param += p.numel()
+
+print(train_param, total_param) # 4bit use 1 int8 for 2 params
+
+model.forward(torch.arange(20, device=model.model.embed_tokens.weight.device).reshape(1, -1))
