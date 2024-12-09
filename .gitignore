@@ -8,3 +8,6 @@ utils/
 datasets/
 site-packages
 data/
+Meta-Llama-3.1-8B-Instruct
+newmodel
+*.out

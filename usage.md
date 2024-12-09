@@ -1,3 +1,6 @@
+python preprocess.py将Llama模型转为GMLlama模型
+
+
 ## 通用参数
 ### `ModelArguments`
 模型的参数。
